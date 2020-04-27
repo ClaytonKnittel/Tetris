@@ -22,5 +22,5 @@ else
 CFLAGS=-O0 -Wall -Wno-unused-function -MMD -MP -g3 -DDEBUG
 endif
 
-LDFLAGS=$(LFLAGS)
+LDFLAGS=$(LFLAGS) $(GLLIBS)
 

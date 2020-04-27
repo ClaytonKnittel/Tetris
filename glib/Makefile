@@ -13,7 +13,7 @@ OBJDIRS=$(patsubst $(SDIR)/%,$(ODIR)/%,$(DIRS))
 $(shell mkdir -p $(ODIR))
 $(shell mkdir -p $(OBJDIRS))
 
-DEPFILES=$(SRC:%.c=$(ODIR)/%.d)
+DEPFILES=$(SRC:$(SDIR)/%.c=$(ODIR)/%.d)
 
 .PHONY: all
 all: $(LDIR)/libglib.a
@@ -22,7 +22,7 @@ $(LDIR)/libglib.a: $(OBJ)
 	$(AR) -rcs $@ $^
 
 $(ODIR)/%.o: $(SDIR)/%.c
-	$(CC) $(CFLAGS) $^ -c -o $@ $(IFLAGS)
+	$(CC) $(CFLAGS) $< -c -o $@ $(IFLAGS)
 
 -include $(wildcard $(DEPFILES))
 

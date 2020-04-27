@@ -1,11 +1,20 @@
 include common.mk
 
 .PHONY: all
-all:
-	mkdir -p $(LDIR)
-	mkdir -p $(BDIR)
-	(make -C $(LIBDIR) BASE_DIR=${CURDIR} LDIR=$(LDIR))
-	(make -C $(GAMEDIR) BASE_DIR=${CURDIR} BDIR=$(BDIR))
+all: dirs glib main
+
+.PHONY: dirs
+dirs:
+	@mkdir -p $(LDIR)
+	@mkdir -p $(BDIR)
+
+.PHONY: main
+main:
+	@(make -C $(GAMEDIR) BASE_DIR=${CURDIR} BDIR=$(BDIR) LDIR=$(LDIR))
+
+.PHONY: glib
+glib:
+	@(make -C $(LIBDIR) BASE_DIR=${CURDIR} LDIR=$(LDIR))
 
 .PHONY: clean
 clean:

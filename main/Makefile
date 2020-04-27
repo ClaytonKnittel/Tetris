@@ -13,16 +13,16 @@ OBJDIRS=$(patsubst $(SDIR)/%,$(ODIR)/%,$(DIRS))
 $(shell mkdir -p $(ODIR))
 $(shell mkdir -p $(OBJDIRS))
 
-DEPFILES=$(SRC:%.c=$(ODIR)/%.d)
+DEPFILES=$(SRC:$(SDIR)/%.c=$(ODIR)/%.d)
 
 .PHONY: all
 all: $(BDIR)/game
 
-$(BDIR)/game: $(OBJ)
+$(BDIR)/game: $(OBJ) $(LDIR)/libglib.a
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) -lglib
 
 $(ODIR)/%.o: $(SDIR)/%.c
-	$(CC) $(CFLAGS) $^ -c -o $@ $(IFLAGS)
+	$(CC) $(CFLAGS) $< -c -o $@ $(IFLAGS)
 
 -include $(wildcard $(DEPFILES))
 
