@@ -74,9 +74,7 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
     b->width_loc = gl_uniform_location(&b->p, "width");
     b->height_loc = gl_uniform_location(&b->p, "height");
 
-    b->color_idx_loc = gl_uniform_location(&b->p, "color_idx");
-
-    b->tile_idx_loc = gl_uniform_location(&b->p, "tile_idx");
+    b->color_idxs_loc = gl_uniform_location(&b->p, "color_idxs");
 
 
     square_init(&b->tile_prot, .08f, &b->p);
@@ -120,11 +118,10 @@ void board_destroy(board_t *b) {
 void board_draw(board_t *b) {
     gl_use_program(&b->p);
 
-    for (uint32_t i = 0; i < b->width * b->height; i++) {
-        glUniform1ui(b->color_idx_loc, b->color_idxs[i]);
-        glUniform1ui(b->tile_idx_loc, i);
-        shape_draw(&b->tile_prot);
-    }
+    // send over all color information about tiles
+    glUniform1uiv(b->color_idxs_loc, b->width * b->height, b->color_idxs);
+
+    shape_draw_instanced(&b->tile_prot, b->width * b->height);
 }
 
 

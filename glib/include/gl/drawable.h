@@ -56,5 +56,11 @@ static void gl_draw(drawable *d) {
     glBindVertexArray(0);
 }
 
+static void gl_draw_instanced(drawable *d, GLsizei primcount) {
+    glBindVertexArray(d->vao);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, d->size, primcount);
+    glBindVertexArray(0);
+}
+
 
 #endif /* _DRAWABLE_H */

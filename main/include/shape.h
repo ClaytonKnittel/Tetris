@@ -79,5 +79,27 @@ static void shape_draw(shape *s) {
     gl_draw(&s->base);
 }
 
+static void shape_draw_instanced(shape *s, size_t primcount) {
+    if (!s->visible) {
+        return;
+    }
+
+    mat3 trans = {
+        .m00 = s->xscale,
+        .m01 = 0.f,
+        .m02 = s->pos.x,
+        .m10 = 0.f,
+        .m11 = s->yscale,
+        .m12 = s->pos.y,
+        .m20 = 0.f,
+        .m21 = 0.f,
+        .m22 = 1.f
+    };
+
+    glUniformMatrix3fv(s->mat_loc, 1, GL_TRUE, (GLfloat*) &trans.__m);
+
+    gl_draw_instanced(&s->base, primcount);
+}
+
 
 #endif /* _SHAPE_H */

@@ -1,5 +1,9 @@
 #version 330 core
 
+// expected width and height of board
+#define WIDTH 10
+#define HEIGHT 20
+
 // transformation matrix to be applied to entire grid. When it's the identity,
 // the board is drawn to exactly fit the unit square
 uniform mat3 trans;
@@ -12,11 +16,9 @@ uniform vec4 color_array[8 * 4];
 uniform uint width;
 uniform uint height;
 
-// to be replaced
-uniform uint color_idx;
 
-// to become other index guy
-uniform uint tile_idx;
+// array of colors of each tile, sent over each frame
+uniform uint color_idxs[WIDTH * HEIGHT];
 
 // 2D position of vertex (normalized to fit unit square exactly)
 layout (location = 0) in vec2 position;
@@ -30,6 +32,8 @@ out vec4 p_color;
 
 
 void main() {
+    uint tile_idx = uint(gl_InstanceID);
+
     float x_i = float(tile_idx % width);
     float y_i = float(tile_idx / width);
 
@@ -49,6 +53,8 @@ void main() {
     vec3 pos = trans * tile_trans * vec3(position, 1.f);
     gl_Position.xyw = pos;
     gl_Position.z = 0.f;
+
+    uint color_idx = color_idxs[tile_idx];
     p_color = color_array[color_idx * 4U + shade_index];
 }
 

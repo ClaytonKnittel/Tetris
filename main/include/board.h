@@ -14,8 +14,8 @@ typedef struct board {
     uint32_t width, height;
 
     program p;
-    GLuint color_array_loc, color_idx_loc;
-    GLuint width_loc, height_loc, tile_idx_loc;
+    GLuint color_array_loc, color_idxs_loc;
+    GLuint width_loc, height_loc;
 } board_t;
 
 
