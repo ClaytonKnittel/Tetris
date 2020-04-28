@@ -8,7 +8,7 @@
 
 
 // number of different colors of tiles (not including invisible)
-#define N_COLORS 8
+#define N_COLORS N_STATES
 
 
 const static color_t color_theme[4 * N_COLORS] = {
@@ -63,7 +63,8 @@ const static color_t color_theme[4 * N_COLORS] = {
 
 
 int board_init(board_t *b, uint32_t width, uint32_t height) {
-    b->color_idxs = (uint32_t*) malloc(width * height * sizeof(uint32_t));
+    uint32_t color_idxs_len = color_idxs_arr_len(width * height);
+    b->color_idxs = (uint32_t*) calloc(color_idxs_len, sizeof(uint32_t));
 
     b->width = width;
     b->height = height;
@@ -86,7 +87,7 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
     for (uint32_t i = 0; i < width * height; i++) {
         uint32_t x = i % width;
         uint32_t y = i / width;
-        b->color_idxs[i] = ((x ^ y) % 8);
+        board_set_tile(b, x, y, ((x ^ y) % 8));
     }
 
     shape_set_visible(&b->tile_prot);

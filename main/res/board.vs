@@ -4,6 +4,16 @@
 #define WIDTH 10
 #define HEIGHT 20
 
+#define SIZEOF_UINT8 4U
+
+// same as macros from board.h
+#define N_STATES 8U
+#define LOG_N_STATES 3U
+#define COLOR_IDXS_PER_INT \
+    ((SIZEOF_UINT8 * 8U) / LOG_N_STATES)
+#define COLOR_IDX_MASK (N_STATES - 1U)
+
+
 // transformation matrix to be applied to entire grid. When it's the identity,
 // the board is drawn to exactly fit the unit square
 uniform mat3 trans;
@@ -54,7 +64,12 @@ void main() {
     gl_Position.xyw = pos;
     gl_Position.z = 0.f;
 
-    uint color_idx = color_idxs[tile_idx];
-    p_color = color_array[color_idx * 4U + shade_index];
+    // now find color_idx for tile
+    uint color_idx = tile_idx / COLOR_IDXS_PER_INT;
+    uint el_idx = tile_idx - (color_idx * COLOR_IDXS_PER_INT);
+    uint color = (color_idxs[color_idx] >> (el_idx * LOG_N_STATES))
+        & COLOR_IDX_MASK;
+
+    p_color = color_array[color * 4U + shade_index];
 }
 
