@@ -11,6 +11,7 @@
 #define BOARD_W 10
 #define BOARD_H 20
 
+// dimension of single tile in pixels
 #define TILE_SIZE 40
 
 
@@ -26,7 +27,11 @@ int main(int argc, char *argv[]) {
 
     board_init(&b, BOARD_W, BOARD_H);
 
+    board_set_pos(&b, -.8f, -.8f);
+    board_set_xscale(&b, 1.6f);
+    board_set_yscale(&b, 1.6f);
     do {
+        usleep(100000);
         gl_clear(&c);
 
         board_draw(&b);
@@ -35,6 +40,7 @@ int main(int argc, char *argv[]) {
     } while (!gl_should_exit(&c));
 
     board_destroy(&b);
+    gl_exit(&c);
 
     return 0;
 }

@@ -53,11 +53,11 @@ void main() {
     // transforms normalized square (fits unit square) to its tile position
     // within the unit square
     // note: in column-major order
-    float dx = (2.f * x_i / fwid) - 1.f;
-    float dy = (2.f * y_i / fhei) - 1.f;
+    float dx = x_i / fwid;
+    float dy = y_i / fhei;
     mat3 tile_trans = mat3(
-            2.f / fwid, 0.f,        0.f,
-            0.f,        2.f / fhei, 0.f,
+            1.f / fwid, 0.f,        0.f,
+            0.f,        1.f / fhei, 0.f,
             dx,         dy,         1.f);
 
     vec3 pos = trans * tile_trans * vec3(position, 1.f);

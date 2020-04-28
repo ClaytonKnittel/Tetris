@@ -14,6 +14,11 @@ typedef struct shape {
     vec2 pos;
 
     int visible;
+
+    // to be set when a drawable is updated, unset when the updates have been
+    // synchronized with uniform variables in the shader (to minimize GPU
+    // comminucation traffic)
+    int modified;
 } shape;
 
 
@@ -29,6 +34,7 @@ static void shape_init(shape *s, program * p) {
     s->mat_loc = gl_uniform_location(p, "trans");
 
     s->visible = 0;
+    s->modified = 1;
 }
 
 static void shape_destroy(shape *s) {
@@ -38,14 +44,17 @@ static void shape_destroy(shape *s) {
 
 static void shape_set_pos(shape *s, float x, float y) {
     init_vec2(&s->pos, x, y);
+    s->modified = 1;
 }
 
 static void shape_set_xscale(shape *s, float xscale) {
     s->xscale = xscale;
+    s->modified = 1;
 }
 
 static void shape_set_yscale(shape *s, float yscale) {
     s->yscale = yscale;
+    s->modified = 1;
 }
 
 static void shape_set_visible(shape *s) {
@@ -62,19 +71,23 @@ static void shape_draw(shape *s) {
         return;
     }
 
-    mat3 trans = {
-        .m00 = s->xscale,
-        .m01 = 0.f,
-        .m02 = s->pos.x,
-        .m10 = 0.f,
-        .m11 = s->yscale,
-        .m12 = s->pos.y,
-        .m20 = 0.f,
-        .m21 = 0.f,
-        .m22 = 1.f
-    };
+    if (s->modified) {
+        mat3 trans = {
+            .m00 = s->xscale,
+            .m01 = 0.f,
+            .m02 = s->pos.x,
+            .m10 = 0.f,
+            .m11 = s->yscale,
+            .m12 = s->pos.y,
+            .m20 = 0.f,
+            .m21 = 0.f,
+            .m22 = 1.f
+        };
 
-    glUniformMatrix3fv(s->mat_loc, 1, GL_TRUE, (GLfloat*) &trans.__m);
+        glUniformMatrix3fv(s->mat_loc, 1, GL_TRUE, (GLfloat*) &trans.__m);
+
+        s->modified = 0;
+    }
 
     gl_draw(&s->base);
 }
@@ -84,19 +97,23 @@ static void shape_draw_instanced(shape *s, size_t primcount) {
         return;
     }
 
-    mat3 trans = {
-        .m00 = s->xscale,
-        .m01 = 0.f,
-        .m02 = s->pos.x,
-        .m10 = 0.f,
-        .m11 = s->yscale,
-        .m12 = s->pos.y,
-        .m20 = 0.f,
-        .m21 = 0.f,
-        .m22 = 1.f
-    };
+    if (s->modified) {
+        mat3 trans = {
+            .m00 = s->xscale,
+            .m01 = 0.f,
+            .m02 = s->pos.x,
+            .m10 = 0.f,
+            .m11 = s->yscale,
+            .m12 = s->pos.y,
+            .m20 = 0.f,
+            .m21 = 0.f,
+            .m22 = 1.f
+        };
 
-    glUniformMatrix3fv(s->mat_loc, 1, GL_TRUE, (GLfloat*) &trans.__m);
+        glUniformMatrix3fv(s->mat_loc, 1, GL_TRUE, (GLfloat*) &trans.__m);
+
+        s->modified = 0;
+    }
 
     gl_draw_instanced(&s->base, primcount);
 }

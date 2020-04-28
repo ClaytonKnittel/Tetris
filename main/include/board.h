@@ -42,6 +42,19 @@ int board_init(board_t *b, uint32_t width, uint32_t height);
 void board_destroy(board_t *b);
 
 
+static void board_set_pos(board_t *b, float x, float y) {
+    shape_set_pos(&b->tile_prot, x, y);
+}
+
+static void board_set_xscale(board_t *b, float xscale) {
+    shape_set_xscale(&b->tile_prot, xscale);
+}
+
+static void board_set_yscale(board_t *b, float yscale) {
+    shape_set_yscale(&b->tile_prot, yscale);
+}
+
+
 static void board_set_tile(board_t *b, uint32_t x, uint32_t y,
         uint32_t tile_color) {
 

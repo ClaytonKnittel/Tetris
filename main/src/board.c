@@ -80,10 +80,6 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
 
     square_init(&b->tile_prot, .08f, &b->p);
 
-    shape_set_pos(&b->tile_prot, 0.f, 0.f);
-    shape_set_xscale(&b->tile_prot, 1.f);
-    shape_set_yscale(&b->tile_prot, 1.f);
-
     for (uint32_t i = 0; i < width * height; i++) {
         uint32_t x = i % width;
         uint32_t y = i / width;

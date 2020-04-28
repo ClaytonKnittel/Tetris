@@ -79,4 +79,9 @@ int gl_init(gl_context *context, GLint width, GLint height) {
     return 0;
 }
 
+void gl_exit(gl_context *context) {
+    glfwDestroyWindow(context->window);
+    glfwTerminate();
+}
+
 

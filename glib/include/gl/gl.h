@@ -26,6 +26,8 @@ typedef struct gl_context {
 
 int gl_init(gl_context *context, GLint width, GLint height);
 
+void gl_exit(gl_context *context);
+
 
 static void gl_set_bg_color(color_t color) {
     glClearColor(color_r(color), color_g(color),
