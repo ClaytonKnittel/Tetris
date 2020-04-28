@@ -5,11 +5,11 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <shader.h>
+#include <gl/shader.h>
 
 #define MAX_FILE_SIZE 4096
 
-static int load_shader(GLuint * s, const char * file_path, int type) {
+static int gl_load_shader(GLuint * s, const char * file_path, int type) {
     GLint n_read, status;
     GLchar *buf;
     FILE * f = fopen(file_path, "r");
@@ -60,13 +60,13 @@ static int load_shader(GLuint * s, const char * file_path, int type) {
 }
 
 
-int load_program(program * p, const char * restrict vert_path,
+int gl_load_program(program * p, const char * restrict vert_path,
         const char * restrict frag_path) {
     GLint status;
     GLuint vert, frag;
 
-    int res = load_shader(&vert, vert_path, GL_VERTEX_SHADER);
-    res = res || load_shader(&frag, frag_path, GL_FRAGMENT_SHADER);
+    int res = gl_load_shader(&vert, vert_path, GL_VERTEX_SHADER);
+    res = res || gl_load_shader(&frag, frag_path, GL_FRAGMENT_SHADER);
 
     if (res != 0) {
         return res;
@@ -95,12 +95,12 @@ int load_program(program * p, const char * restrict vert_path,
 }
 
 
-void use_program(program * p) {
+void gl_use_program(program * p) {
     glUseProgram(p->self);
 }
 
 
-void unload_program(program * p) {
+void gl_unload_program(program * p) {
     glDeleteProgram(p->self);
 }
 

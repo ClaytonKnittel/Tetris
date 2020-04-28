@@ -1,48 +1,40 @@
 
 #include <stdio.h>
+#include <math.h>
 
-#include <gl.h>
-#include <drawable.h>
-#include <shader.h>
+#include <gl/gl.h>
+#include <gl/shader.h>
+
+#include <board.h>
+
+
+#define BOARD_W 10
+#define BOARD_H 20
+
+#define TILE_SIZE 40
+
 
 int main(int argc, char *argv[]) {
     gl_context c;
-    program p;
 
-    drawable d;
+    board_t b;
 
-    union {
-        int ival;
-        float fval;
-    } color = {
-        .ival = 0xff0000ff
-    };
+    gl_init(&c, BOARD_W * TILE_SIZE, BOARD_H * TILE_SIZE);
 
-    float data[] = {
-        -1.f, -1.f, color.fval,
-        1.f, -1.f, color.fval,
-        0.f, 1.f, color.fval,
-    };
-
-    gl_init(&c);
-    load_program(&p, "main/shaders/two.vs", "main/shaders/two.frag");
-
-    color_t bg = gen_color(10, 150, 140, 255);
+    color_t bg = gen_color(3, 30, 48, 255);
     gl_set_bg_color(bg);
 
-    gl_load_static_monochrome_drawable(&d, (uint32_t*) data, 3);
+    board_init(&b, BOARD_W, BOARD_H);
 
     do {
         gl_clear(&c);
-        use_program(&p);
 
-        gl_draw(&d);
+        board_draw(&b);
 
         gl_render(&c);
     } while (!gl_should_exit(&c));
 
-    gl_unload_static_monochrome_drawable(&d);
-    unload_program(&p);
+    board_destroy(&b);
 
     return 0;
 }

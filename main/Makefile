@@ -19,7 +19,7 @@ DEPFILES=$(SRC:$(SDIR)/%.c=$(ODIR)/%.d)
 all: $(BDIR)/game
 
 $(BDIR)/game: $(OBJ) $(LDIR)/libglib.a
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS) -lglib
+	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LDFLAGS) -lglib
 
 $(ODIR)/%.o: $(SDIR)/%.c
 	$(CC) $(CFLAGS) $< -c -o $@ $(IFLAGS)

@@ -7,12 +7,28 @@
 #include <GLFW/glfw3.h>
 
 
-#include <gl.h>
+#include <gl/gl.h>
 
 
-int gl_init(gl_context *context) {
+static gl_context * get_window_context(GLFWwindow *w) {
+    return (gl_context*) glfwGetWindowUserPointer(w);
+}
+
+
+static void window_resize_cb(GLFWwindow *w, int width, int height) {
+    gl_context * c = get_window_context(w);
+    glfwGetFramebufferSize(w, &width, &height);
+
+    width_height wh = {
+        .w = width,
+        .h = height
+    };
+    c->wh = wh;
+}
+
+
+int gl_init(gl_context *context, GLint width, GLint height) {
     GLFWwindow * window;
-    GLint width, height;
 
     if (!glfwInit()) {
         fprintf(stderr, "GLFW window could not be initialized\n");
@@ -26,7 +42,7 @@ int gl_init(gl_context *context) {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-    window = glfwCreateWindow(1024, 768, "Game", NULL, NULL);
+    window = glfwCreateWindow(width, height, "Game", NULL, NULL);
 
     if (window == NULL) {
         fprintf(stderr, "Failed to open GLFW window\n" );
@@ -44,14 +60,21 @@ int gl_init(gl_context *context) {
     }
 
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-    //glViewport(0, 0, width, height);
+
+    glfwSetWindowSizeCallback(window, &window_resize_cb);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     context->window = window;
-    context->w = width;
-    context->h = height;
+
+    width_height wh = {
+        .w = width,
+        .h = height
+    };
+    context->wh = wh;
+
+    glfwSetWindowUserPointer(window, context);
 
     return 0;
 }
