@@ -7,9 +7,8 @@
 typedef uint32_t color_t;
 
 
-static color_t gen_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-    return (r) | (g << 8) | (b << 16) | (a << 24);
-}
+#define gen_color(r, g, b, a) \
+    ((color_t) ((r) | (g << 8) | (b << 16) | (a << 24)))
 
 
 static float color_r(color_t color) {

@@ -5,14 +5,17 @@
 
 
 typedef struct board {
-    shape *tiles;
+    // tile prototype shape (will be instanced)
+    shape tile_prot;
 
     uint32_t *color_idxs;
 
+    // width and height of board, in tiles
     uint32_t width, height;
 
     program p;
     GLuint color_array_loc, color_idx_loc;
+    GLuint width_loc, height_loc, tile_idx_loc;
 } board_t;
 
 

@@ -7,13 +7,16 @@
 
 #define FILL 0
 #define LRIM 1
-#define DRIM 2
+#define MRIM 2
+#define DRIM 3
+
 
 void square_init(shape *s, float rim_w, program * p) {
 
     // reinterpret casts just so c will allow us to compile
     float fill = int_to_float(FILL);
     float lrim = int_to_float(LRIM);
+    float mrim = int_to_float(MRIM);
     float drim = int_to_float(DRIM);
 
     float data[N_ELS] = {
@@ -36,13 +39,13 @@ void square_init(shape *s, float rim_w, program * p) {
         0.f,          0.f,          drim,
 
         // right rim 
-        1.f - rim_w,  rim_w,        drim,
-        1.f,          0.f,          drim,
-        1.f,          1.f,          drim,
+        1.f - rim_w,  rim_w,        mrim,
+        1.f,          0.f,          mrim,
+        1.f,          1.f,          mrim,
 
-        1.f,          1.f,          drim,
-        1.f - rim_w,  1.f - rim_w,  drim,
-        1.f - rim_w,  rim_w,        drim,
+        1.f,          1.f,          mrim,
+        1.f - rim_w,  1.f - rim_w,  mrim,
+        1.f - rim_w,  rim_w,        mrim,
 
         // top rim 
         rim_w,        1.f - rim_w,  lrim,
@@ -54,13 +57,13 @@ void square_init(shape *s, float rim_w, program * p) {
         rim_w,        1.f - rim_w,  lrim,
 
         // left rim 
-        0.f,          0.f,          lrim,
-        rim_w,        rim_w,        lrim,
-        rim_w,        1.f - rim_w,  lrim,
+        0.f,          0.f,          mrim,
+        rim_w,        rim_w,        mrim,
+        rim_w,        1.f - rim_w,  mrim,
 
-        rim_w,        1.f - rim_w,  lrim,
-        0.f,          1.f,          lrim,
-        0.f,          0.f,          lrim,
+        rim_w,        1.f - rim_w,  mrim,
+        0.f,          1.f,          mrim,
+        0.f,          0.f,          mrim,
     };
 
     shape_init(s, p);
