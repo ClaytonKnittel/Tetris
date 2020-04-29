@@ -5,6 +5,9 @@
 
 #define N_PIECES 7
 
+#define ROTATE_CLOCKWISE 1
+#define ROTATE_COUNTERCLOCKWISE -1
+
 
 #define EMPTY 0
 
@@ -264,10 +267,11 @@ static void piece_move(piece_t *p, int8_t dx, int8_t dy) {
 }
 
 /*
- * rotates piece by 90 degrees clockwise
+ * rotates piece by 90 degrees clockwise or counterclockwise, depending on
+ * rotation (either ROTATE_CLOCKWISE or ROTATE_COUNTERCLOCKWISE)
  */
-static void piece_rotate(piece_t *p) {
-    p->orientation = (p->orientation + 1) & 0x3;
+static void piece_rotate(piece_t *p, int rotation) {
+    p->orientation = (p->orientation + rotation) & 0x3;
 }
 
 

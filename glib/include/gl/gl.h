@@ -21,6 +21,12 @@ typedef union wh {
 typedef struct gl_context {
     GLFWwindow * window;
     width_height wh;
+
+    // key callback function, forwarded in OpenGL key listener callback
+    void (*key_callback)(struct gl_context*, int, int, int, int);
+
+    // for user to specify, will never be modified or read by these methods
+    void * user_data;
 } gl_context;
 
 
@@ -35,6 +41,18 @@ static void gl_set_bg_color(color_t color) {
 }
 
 
+void _gl_key_callback_proxy(GLFWwindow *w, int key, int action, int scancode,
+        int mods);
+
+static void gl_register_key_callback(gl_context *c,
+        void (*callback)(gl_context*, int key, int action, int scancode,
+            int mods)) {
+
+    c->key_callback = callback;
+    glfwSetKeyCallback(c->window, &_gl_key_callback_proxy);
+}
+
+
 static void gl_clear(gl_context *c) {
     glClear(GL_COLOR_BUFFER_BIT);
     width_height wh = c->wh;
@@ -45,7 +63,6 @@ static void gl_clear(gl_context *c) {
 static void gl_render(gl_context *c) {
     // Swap buffers
     glfwSwapBuffers(c->window);
-    glfwPollEvents();
 }
 
 

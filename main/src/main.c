@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <unistd.h>
 
 #include <gl/gl.h>
 #include <gl/shader.h>
@@ -17,10 +18,10 @@
 
 int main(int argc, char *argv[]) {
     gl_context c;
-
     tetris_t t;
 
     gl_init(&c, BOARD_W * TILE_SIZE, BOARD_H * TILE_SIZE);
+    c.user_data = (void*) &t;
 
     color_t bg = gen_color(3, 30, 48, 255);
     gl_set_bg_color(bg);
@@ -29,16 +30,19 @@ int main(int argc, char *argv[]) {
         .x = -1.f,
         .y = -1.f
     };
-    tetris_init(&t, pos, 2.f, 2.f);
+    tetris_init(&t, &c, pos, 2.f, 2.f);
 
-    do {
+
+    while (!gl_should_exit(&c)) {
         gl_clear(&c);
 
         tetris_step(&t);
+
         board_draw(&t.board);
 
         gl_render(&c);
-    } while (!gl_should_exit(&c));
+        glfwPollEvents();
+    }
 
     tetris_destroy(&t);
     gl_exit(&c);

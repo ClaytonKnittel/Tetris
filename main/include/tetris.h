@@ -2,8 +2,10 @@
 #define _TETRIS_H
 
 #include <math/vec2.h>
+#include <gl/gl.h>
 
 #include <board.h>
+#include <key_event.h>
 #include <piece.h>
 
 
@@ -20,9 +22,28 @@
 
 
 
+/*
+ * falling piece flags
+ */
+#define FAST_FALLING 0x1
+#define HIT_GROUND_LAST_FRAME 0x2
+
+
+
 typedef struct tetris {
     // piece currently being controlled by player
     piece_t falling_piece;
+
+    /*
+     * bitvector of status flags that apply to the falling piece. Possible
+     * statuses are:
+     *  FAST_FALLING: when set, the piece drops at twice the rate it normally
+     *          would
+     *  HIT_GROUNT_LAST_FRAME: set when the piece hits the ground, and only if
+     *          it hits the ground a second time (when this flag is set) does
+     *          it stick, otherwise it is unset
+     */
+    uint8_t falling_status;
 
     /* status of the game, can be one of
      *  PLAY: normal running state
@@ -56,10 +77,16 @@ typedef struct tetris {
     // frames per step of animation (60 fps, so if this is 60, then the
     // game advances by one step every second)
     uint32_t frames_per_step;
+
+    // align shared data with cache line
+    char __attribute__((aligned(64))) __pad2[0];
+
+    key_event_queue kq;
+
 } tetris_t;
 
 
-void tetris_init(tetris_t *t, vec2 pos, float screen_width,
+void tetris_init(tetris_t *t, gl_context *context, vec2 pos, float screen_width,
         float screen_height);
 
 

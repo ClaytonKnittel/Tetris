@@ -212,7 +212,7 @@ const struct piece_layout pieces[N_PIECES] = {
              *
              * (1, 0), (1, 1), (2, 1), (2, 2)
              */
-            0xa652,
+            0xa651,
             /*
              * . . .
              * O O .

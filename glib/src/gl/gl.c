@@ -85,3 +85,11 @@ void gl_exit(gl_context *context) {
 }
 
 
+
+void _gl_key_callback_proxy(GLFWwindow *w, int key, int action, int scancode,
+        int mods) {
+
+    gl_context * c = get_window_context(w);
+    c->key_callback(c, key, action, scancode, mods);
+}
+
