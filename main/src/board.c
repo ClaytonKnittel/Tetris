@@ -83,7 +83,7 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
     for (uint32_t i = 0; i < width * height; i++) {
         uint32_t x = i % width;
         uint32_t y = i / width;
-        board_set_tile(b, x, y, ((x ^ y) % 8));
+        board_set_tile(b, x, y, 0);
     }
 
     shape_set_visible(&b->tile_prot);
