@@ -2,6 +2,7 @@
 #define _BOARD_H
 
 #include <square.h>
+#include <piece.h>
 
 // number of possible states for each tile
 #define N_STATES 8
@@ -55,8 +56,12 @@ static void board_set_yscale(board_t *b, float yscale) {
 }
 
 
-static void board_set_tile(board_t *b, uint32_t x, uint32_t y,
+static void board_set_tile(board_t *b, int32_t x, int32_t y,
         uint32_t tile_color) {
+    // by comparing as unsigned, take care of negative case
+    if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
+        return;
+    }
 
     uint32_t idx = y * b->width + x;
     uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
@@ -66,6 +71,24 @@ static void board_set_tile(board_t *b, uint32_t x, uint32_t y,
     tile_color <<= el_idx * LOG_N_STATES;
     b->color_idxs[color_idx] = (b->color_idxs[color_idx] & ~mask) |
         tile_color;
+}
+
+static uint8_t board_get_tile(board_t *b, int32_t x, int32_t y) {
+    // by comparing as unsigned, take care of negative case
+    if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
+        // if this tile is above the top of the screen, we count it as empty,
+        // otherwise, there is an imaginary border just outside the screen that
+        // we say the piece is colliding with (return any nonzero value less
+        // than 8)
+        return (((uint32_t) x) < b->width && y >= 0) ? EMPTY : 1;
+    }
+
+    uint32_t idx = y * b->width + x;
+    uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
+    uint32_t el_idx = idx - (color_idx * COLOR_IDXS_PER_INT);
+
+    uint32_t set = b->color_idxs[color_idx] >> (el_idx * LOG_N_STATES);
+    return set & COLOR_IDX_MASK;
 }
 
 void board_draw(board_t *b);

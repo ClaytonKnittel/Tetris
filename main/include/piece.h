@@ -191,6 +191,26 @@ struct __attribute__((aligned(8))) piece_layout {
 const extern struct piece_layout pieces[N_PIECES];
 
 
+/*
+ * defines 8 variables, names <var_name>_[xy]<index>, where (x1, y1) is the
+ * coordinate pair for the first tile in the given piece_idx in given
+ * orientation, (x2, y2) is the second, etc.
+ */
+#define __define_each_tile(var_name, piece_idx, orientation, x, y) \
+    uint16_t __bitv_tmp = pieces[(piece_idx) - 1].__bitv[(orientation)]; \
+    int8_t var_name ## _x1 = (x) + ( __bitv_tmp        & 0x3); \
+    int8_t var_name ## _y1 = (y) + ((__bitv_tmp >>  2) & 0x3); \
+    int8_t var_name ## _x2 = (x) + ((__bitv_tmp >>  4) & 0x3); \
+    int8_t var_name ## _y2 = (y) + ((__bitv_tmp >>  6) & 0x3); \
+    int8_t var_name ## _x3 = (x) + ((__bitv_tmp >>  8) & 0x3); \
+    int8_t var_name ## _y3 = (y) + ((__bitv_tmp >> 10) & 0x3); \
+    int8_t var_name ## _x4 = (x) + ((__bitv_tmp >> 12) & 0x3); \
+    int8_t var_name ## _y4 = (y) + ((__bitv_tmp >> 14) & 0x3)
+
+#define define_each_piece_tile(var_name, piece) \
+    __define_each_tile(var_name, (piece).piece_idx, (piece).orientation, \
+        (piece).board_x, (piece).board_y)
+
 
 typedef struct piece {
     /*

@@ -24,6 +24,11 @@ void tetris_init(tetris_t *t, vec2 pos, float screen_width,
     permute(&t->piece_queue[0], 7, sizeof(t->piece_queue[0]));
     permute(&t->piece_queue[7], 7, sizeof(t->piece_queue[0]));
 
+    for (int i = 0; i < N_PIECES; i++) {
+        printf("%d ", t->piece_queue[i]);
+    }
+    printf("\n");
+
     // initialize falling piece to empty (no piece)
     piece_init(&t->falling_piece, EMPTY, 0, 0);
 
@@ -53,8 +58,58 @@ static uint32_t _fetch_next_piece_idx(tetris_t *t) {
 
         // reset queue index to reflect where the pieces moved
         t->queue_idx = 0;
+
     }
     return next;
+}
+
+
+
+/*
+ * places a piece on the board by setting each of the tiles it occupies to its
+ * color
+ */
+static void _place_piece(tetris_t *t, piece_t piece) {
+    define_each_piece_tile(p, piece);
+    uint32_t tile_color = piece.piece_idx;
+
+    board_set_tile(&t->board, p_x1, p_y1, tile_color);
+    board_set_tile(&t->board, p_x2, p_y2, tile_color);
+    board_set_tile(&t->board, p_x3, p_y3, tile_color);
+    board_set_tile(&t->board, p_x4, p_y4, tile_color);
+}
+
+
+/*
+ * removes a piece on the board by setting each of the tiles it occupies back
+ * to EMPTY
+ */
+static void _remove_piece(tetris_t *t, piece_t piece) {
+    define_each_piece_tile(p, piece);
+
+    board_set_tile(&t->board, p_x1, p_y1, EMPTY);
+    board_set_tile(&t->board, p_x2, p_y2, EMPTY);
+    board_set_tile(&t->board, p_x3, p_y3, EMPTY);
+    board_set_tile(&t->board, p_x4, p_y4, EMPTY);
+}
+
+
+
+/*
+ * checks to see if the given piece will be colliding with any pieces that
+ * are already on the given board
+ */
+static int _piece_collides(tetris_t *t, piece_t piece) {
+    define_each_piece_tile(p, piece);
+    
+    uint8_t p1 = board_get_tile(&t->board, p_x1, p_y1);
+    uint8_t p2 = board_get_tile(&t->board, p_x2, p_y2);
+    uint8_t p3 = board_get_tile(&t->board, p_x3, p_y3);
+    uint8_t p4 = board_get_tile(&t->board, p_x4, p_y4);
+
+    // if all squares are empty, then all four tiles or-ed together will be
+    // 0, otherwise, if any tile isn't empty, we will get a nonzero result
+    return ((p1 | p2) | (p3 | p4)) != 0;
 }
 
 
@@ -69,6 +124,26 @@ static void _advance(tetris_t *t) {
         t->falling_piece = falling;
     }
     // move the piece down
+
+    // first, remove the piece from the board where it is
+    _remove_piece(t, falling);
+
+    // and now advance the piece downward
+    piece_t new_falling = falling;
+    piece_move(&new_falling, 0, -1);
+
+    // check to see if there would be any collisions here
+    if (_piece_collides(t, new_falling)) {
+        // then the piece cannot move down, it is now stuck where it was.
+        // First, put the old piece back, then unset the falling piece
+        _place_piece(t, falling);
+        piece_init(&t->falling_piece, EMPTY, 0, 0);
+    }
+    else {
+        // otherwise, the piece can now be moved down into the new location
+        _place_piece(t, new_falling);
+        t->falling_piece = new_falling;
+    }
 }
 
 

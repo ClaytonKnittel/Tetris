@@ -26,15 +26,15 @@ int main(int argc, char *argv[]) {
     gl_set_bg_color(bg);
 
     vec2 pos = {
-        .x = -.8f,
-        .y = -.8f
+        .x = -1.f,
+        .y = -1.f
     };
-    tetris_init(&t, pos, 1.6f, 1.6f);
+    tetris_init(&t, pos, 2.f, 2.f);
 
     do {
-        usleep(100000);
         gl_clear(&c);
 
+        tetris_step(&t);
         board_draw(&t.board);
 
         gl_render(&c);
