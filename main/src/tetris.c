@@ -29,6 +29,31 @@ static void _init_key_listeners(tetris_t *t, gl_context *context) {
 }
 
 
+static void _init_fp_data(falling_piece_data *f) {
+    f->falling_status = 0;
+    f->ground_hit_count = 0;
+
+    f->min_h_inc_time = 0;
+    // set min_h to max value of height
+    f->min_h = 0x7f;
+}
+
+static void _reset_fp_data(falling_piece_data *f) {
+    f->falling_status &= ~HIT_GROUND_LAST_FRAME;
+    f->ground_hit_count = 0;
+
+    f->min_h_inc_time = 0;
+    // set min_h to max value of height
+    f->min_h = 0x7f;
+}
+
+
+
+static void _init_controller(controller *ctrl) {
+    __builtin_memset(ctrl, 0, sizeof(controller));
+}
+
+
 void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
         float screen_width, float screen_height) {
 
@@ -49,8 +74,10 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
 
     // initialize falling piece to empty (no piece)
     piece_init(&t->falling_piece, EMPTY, 0, 0);
-    t->falling_status = 0;
-    t->ground_hit_count = 0;
+
+    _init_fp_data(&t->fp_data);
+
+    _init_controller(&t->ctrl);
 
     t->state = PLAY;
 
@@ -59,7 +86,8 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
 
     // initialize time to 0
     t->time = 0LU;
-    t->frames_per_step = 16;
+    t->major_tick_count = 16;
+    t->minor_tick_count = 4;
 
 }
 
@@ -228,6 +256,8 @@ static int _rotate_piece(tetris_t *t, int rotation) {
                 return 1;
             }
 
+            printf("tried (%d, %d)\n", dx, dy);
+
             // move it back before next iteration
             piece_move(&new_falling, -dx, -dy);
         }
@@ -245,6 +275,8 @@ static int _rotate_piece(tetris_t *t, int rotation) {
  * advances game state by one step. If it was successfully able to do so, then
  * 1 is returned, otherwise, if the game ended due to a game over, 0 is
  * returned
+ *
+ * should only be called on major time steps
  */
 static int _advance(tetris_t *t) {
     piece_t falling;
@@ -273,11 +305,10 @@ static int _advance(tetris_t *t) {
             // First, put the old piece back, then unset the falling piece
             int placed = _place_piece(t, falling);
 
-            if (t->falling_status & HIT_GROUND_LAST_FRAME) {
+            if (t->fp_data.falling_status & HIT_GROUND_LAST_FRAME) {
                 // if the piece spend two successive frames hitting the ground,
                 // we stick it wherever it is
-                t->falling_status &= ~HIT_GROUND_LAST_FRAME;
-                t->ground_hit_count = 0;
+                _reset_fp_data(&t->fp_data);
 
                 if (!placed) {
                     // if we could not place this piece even partially on the
@@ -293,7 +324,7 @@ static int _advance(tetris_t *t) {
                 // if we were not hitting the ground last frame, then we set
                 // this flag and allow the player to try moving the piece again
                 // before it sticks
-                t->falling_status |= HIT_GROUND_LAST_FRAME;
+                t->fp_data.falling_status |= HIT_GROUND_LAST_FRAME;
                 break;
             }
         }
@@ -304,15 +335,35 @@ static int _advance(tetris_t *t) {
 
             // unset hit ground last frame flag, in case it was set and the
             // piece was subsequently moved off the platform
-            t->falling_status &= ~HIT_GROUND_LAST_FRAME;
-            t->ground_hit_count = 0;
+            t->fp_data.falling_status &= ~HIT_GROUND_LAST_FRAME;
+            t->fp_data.ground_hit_count = 0;
             // that is the completion of this move
             break;
         }
     }
+
     return 1;
 }
 
+
+/*
+ * to be called whenever a piece has been successfully moved by player control
+ */
+static void _control_moved_piece(tetris_t *t) {
+
+    // if the ground was hit last frame, then we unset the hit ground last frame
+    // flag to give it another frame before it gets stuck (unless we have already
+    // exceeded the maximum number of times we are allowed to do this or the
+    // piece has not decreased the minimum global y value in sufficient time)
+    if ((t->fp_data.falling_status & HIT_GROUND_LAST_FRAME) &&
+            t->fp_data.ground_hit_count < MAX_GROUND_HIT_COUNT &&
+            t->fp_data.min_h_inc_time < MAX_MIN_H_INC_TIME) {
+
+        t->fp_data.falling_status &= ~HIT_GROUND_LAST_FRAME;
+        t->fp_data.ground_hit_count++;
+    }
+
+}
 
 
 static void _handle_event(tetris_t *t, key_event *ev) {
@@ -321,16 +372,18 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     // due to one of the following move/rotate methods
     int res = 0;
 
-    if (ev->action == GLFW_PRESS || ev->action == GLFW_REPEAT) {
+    if (ev->action == GLFW_PRESS) {
         switch (ev->key) {
             case GLFW_KEY_LEFT:
                 res = _move_piece(t, -1, 0);
+                t->ctrl.keypress_flags |= LEFT_KEY;
                 break;
             case GLFW_KEY_RIGHT:
                 res = _move_piece(t, 1, 0);
+                t->ctrl.keypress_flags |= RIGHT_KEY;
                 break;
             case GLFW_KEY_DOWN:
-                t->falling_status |= FAST_FALLING;
+                t->ctrl.keypress_flags |= DOWN_KEY;
                 break;
             case GLFW_KEY_A:
                 res = _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
@@ -342,33 +395,74 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     }
     if (ev->action == GLFW_RELEASE) {
         switch (ev->key) {
+            case GLFW_KEY_LEFT:
+                t->ctrl.keypress_flags &= ~LEFT_KEY;
+                t->ctrl.l_hold_count = 0;
+                break;
+            case GLFW_KEY_RIGHT:
+                t->ctrl.keypress_flags &= ~RIGHT_KEY;
+                t->ctrl.r_hold_count = 0;
+                break;
             case GLFW_KEY_DOWN:
-                t->falling_status &= ~FAST_FALLING;
+                t->ctrl.keypress_flags &= ~DOWN_KEY;
                 break;
         }
     }
 
-    // if we successfully moved/rotated the piece, and the ground was hit last
-    // frame, then we unset the hit ground last frame flag to give it another
-    // frame before it gets stuck (unless we have already exceeded the maximum
-    // number of times we are allowed to do this)
-    if (res && (t->falling_status & HIT_GROUND_LAST_FRAME) &&
-            t->ground_hit_count < MAX_GROUND_HIT_COUNT) {
-
-        t->falling_status &= ~HIT_GROUND_LAST_FRAME;
-        t->ground_hit_count++;
+    // if a piece was successfully moved, then we need to register it in case
+    // this has any affect on the falling piece data control
+    if (res) {
+        _control_moved_piece(t);
     }
 }
 
 
-static int _should_advance(tetris_t *t) {
-    // if we are fast falling, use a smaller divisor, which is determined by
-    // FAST_FALLING_SPEEDUP
-    uint32_t frames_per_step = (t->falling_status & FAST_FALLING) ?
-        (t->frames_per_step / FAST_FALLING_SPEEDUP) : t->frames_per_step;
 
-    return t->time % frames_per_step == 0;
+static int _is_major_time_step(tetris_t *t) {
+    return (t->time % t->major_tick_count) == 0;
 }
+
+static int _is_minor_time_step(tetris_t *t) {
+    return (t->time % t->minor_tick_count) == 0;
+}
+
+/*
+ * to be called every major time step, handles extra callbacks from held-down
+ * keys and management of the controller state
+ */
+static void _handle_ctrl_callbacks(tetris_t *t) {
+    controller *c = &t->ctrl;
+    int res = 0;
+
+    if (c->keypress_flags & LEFT_KEY) {
+        if (c->l_hold_count == REPEAT_TIMER) {
+            res |= _move_piece(t, -1, 0);
+        }
+        else {
+            c->l_hold_count++;
+        }
+    }
+    if (c->keypress_flags & RIGHT_KEY) {
+        if (c->r_hold_count == REPEAT_TIMER) {
+            res |= _move_piece(t, 1, 0);
+        }
+        else {
+            c->r_hold_count++;
+        }
+    }
+    if (c->keypress_flags & DOWN_KEY) {
+        // only do this callback on exclusively minor time steps, since the
+        // tile is moved down in major time steps by _advance
+        if (!_is_major_time_step(t)) {
+            res |= _move_piece(t, 0, -1);
+        }
+    }
+
+    if (res) {
+        _control_moved_piece(t);
+    }
+}
+
 
 
 void tetris_step(tetris_t *t) {
@@ -385,7 +479,8 @@ void tetris_step(tetris_t *t) {
         return;
     }
 
-    if (_should_advance(t)) {
+
+    if (_is_major_time_step(t)) {
         // advance game state
         could_advance = _advance(t);
 
@@ -394,7 +489,21 @@ void tetris_step(tetris_t *t) {
             t->state = GAME_OVER;
             printf("Game over\n");
         }
+
+        // check to see if min y has increased
+        if (t->fp_data.min_h > t->falling_piece.board_y) {
+            t->fp_data.min_h = t->falling_piece.board_y;
+            t->fp_data.min_h_inc_time = 0;
+        }
+        else {
+            t->fp_data.min_h_inc_time++;
+        }
     }
+    else if (_is_minor_time_step(t)) {
+        _handle_ctrl_callbacks(t);
+
+    }
+
 
     t->time++;
 }
