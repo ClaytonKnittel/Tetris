@@ -28,6 +28,7 @@
 #define FAST_FALLING 0x1
 #define HIT_GROUND_LAST_FRAME 0x2
 
+#define FAST_FALLING_SPEEDUP 4
 
 
 typedef struct tetris {

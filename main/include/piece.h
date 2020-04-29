@@ -191,6 +191,9 @@ struct __attribute__((aligned(8))) piece_layout {
 };
 
 
+/*
+ * layout data of each of the pieces
+ */
 const extern struct piece_layout pieces[N_PIECES];
 
 
@@ -213,6 +216,66 @@ const extern struct piece_layout pieces[N_PIECES];
 #define define_each_piece_tile(var_name, piece) \
     __define_each_tile(var_name, (piece).piece_idx, (piece).orientation, \
         (piece).board_x, (piece).board_y)
+
+
+/*
+ * data encoding which displacements to try placing a piece at when rotated,
+ * for J, L, S, T, and Z tetrominoes
+ */
+const extern uint32_t displacement_trial_data[8];
+
+/*
+ * data encoding which displacements to try placing the I tetromino at when
+ * rotated
+ */
+const extern uint32_t displacement_trial_data_I[16];
+
+// given the previous orientation and rotation direction, gets the displacement
+// vector index from displacement_trial_data_I
+#define dtdI_idx_x(prev_or, rot) \
+    (2 * (2 * (prev_or) + (((rot) >> 1) + 1)))
+
+#define dtdI_idx_y(prev_or, rot) \
+    (dtdI_idx_x(prev_or, rot) + 1)
+
+/*
+ * computes the difference between row1 and row2 from the displacement
+ * trial data table
+ */
+static uint32_t sub_rows(uint32_t row1, uint32_t row2) {
+    const uint32_t pad_mask = 0x77777;
+
+    uint32_t neg_row2 = ((~row2) & pad_mask) + 0x11111;
+
+    return row1 + neg_row2;
+}
+
+static int8_t sign_extend_3_bit(uint32_t val) {
+    return (int8_t) ((((int32_t) val) << 29) >> 29);
+}
+
+
+#define for_each_displacement_trial(tile_idx, prev_or, rot, dx, dy) \
+    uint32_t __x_row, __y_row; \
+    if ((tile_idx) == PIECE_I) { \
+        __x_row = displacement_trial_data_I[dtdI_idx_x(prev_or, rot)]; \
+        __y_row = displacement_trial_data_I[dtdI_idx_y(prev_or, rot)]; \
+    } \
+    else { \
+        __x_row = sub_rows( \
+                displacement_trial_data[2 * (prev_or)], \
+                displacement_trial_data[2 * (((prev_or) + (rot)) & 0x3)]); \
+        __y_row = sub_rows( \
+                displacement_trial_data[1 + 2 * (prev_or)], \
+                displacement_trial_data[1 + 2 * (((prev_or) + (rot)) & 0x3)]); \
+    } \
+    uint8_t __cnt = 0; \
+    for (dx = sign_extend_3_bit(__x_row & 0x7), dy = sign_extend_3_bit(__y_row & 0x7); \
+            __cnt < 5; \
+            __cnt++, __x_row >>= 4, __y_row >>= 4, \
+            dx = sign_extend_3_bit(__x_row & 0x7), \
+            dy = sign_extend_3_bit(__y_row & 0x7))
+
 
 
 typedef struct piece {

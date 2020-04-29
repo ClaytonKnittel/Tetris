@@ -59,6 +59,65 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     // initialize time to 0
     t->time = 0LU;
     t->frames_per_step = 10;
+
+
+    int8_t dx, dy;
+    {
+        printf("0->R\t");
+        for_each_displacement_trial(PIECE_I, 0, ROTATE_CLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
+    {
+        printf("R->0\t");
+        for_each_displacement_trial(PIECE_I, 1, ROTATE_COUNTERCLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
+    {
+        printf("R->2\t");
+        for_each_displacement_trial(PIECE_I, 1, ROTATE_CLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
+    {
+        printf("2->R\t");
+        for_each_displacement_trial(PIECE_I, 2, ROTATE_COUNTERCLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
+    {
+        printf("2->L\t");
+        for_each_displacement_trial(PIECE_I, 2, ROTATE_CLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
+    {
+        printf("L->2\t");
+        for_each_displacement_trial(PIECE_I, 3, ROTATE_COUNTERCLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
+    {
+        printf("L->0\t");
+        for_each_displacement_trial(PIECE_I, 3, ROTATE_CLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
+    {
+        printf("0->L\t");
+        for_each_displacement_trial(PIECE_I, 0, ROTATE_COUNTERCLOCKWISE, dx, dy) {
+            printf("(%2d, %2d), ", dx, dy);
+        }
+        printf("\n");
+    }
 }
 
 
@@ -286,6 +345,9 @@ static void _handle_event(tetris_t *t, key_event *ev) {
             case GLFW_KEY_RIGHT:
                 _move_piece(t, 1, 0);
                 break;
+            case GLFW_KEY_DOWN:
+                t->falling_status |= FAST_FALLING;
+                break;
             case GLFW_KEY_A:
                 _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
                 break;
@@ -294,6 +356,23 @@ static void _handle_event(tetris_t *t, key_event *ev) {
                 break;
         }
     }
+    if (ev->action == GLFW_RELEASE) {
+        switch (ev->key) {
+            case GLFW_KEY_DOWN:
+                t->falling_status &= ~FAST_FALLING;
+                break;
+        }
+    }
+}
+
+
+static int _should_advance(tetris_t *t) {
+    // if we are fast falling, use a smaller divisor, which is determined by
+    // FAST_FALLING_SPEEDUP
+    uint32_t frames_per_step = (t->falling_status & FAST_FALLING) ?
+        (t->frames_per_step / FAST_FALLING_SPEEDUP) : t->frames_per_step;
+
+    return t->time % frames_per_step == 0;
 }
 
 
@@ -311,7 +390,7 @@ void tetris_step(tetris_t *t) {
         return;
     }
 
-    if (t->time % t->frames_per_step == 0) {
+    if (_should_advance(t)) {
         // advance game state
         could_advance = _advance(t);
 
