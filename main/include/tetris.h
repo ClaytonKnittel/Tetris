@@ -30,6 +30,10 @@
 
 #define FAST_FALLING_SPEEDUP 4
 
+// max number of times we allow the tile to hit into the ground before locking
+// it there anyway (so you can't rotate forever and never place a tile)
+#define MAX_GROUND_HIT_COUNT 10
+
 
 typedef struct tetris {
     // piece currently being controlled by player
@@ -45,6 +49,8 @@ typedef struct tetris {
      *          it stick, otherwise it is unset
      */
     uint8_t falling_status;
+    // counts the number of successive frames the falling tile hit the ground
+    uint8_t ground_hit_count;
 
     /* status of the game, can be one of
      *  PLAY: normal running state

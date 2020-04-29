@@ -50,6 +50,7 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     // initialize falling piece to empty (no piece)
     piece_init(&t->falling_piece, EMPTY, 0, 0);
     t->falling_status = 0;
+    t->ground_hit_count = 0;
 
     t->state = PLAY;
 
@@ -58,66 +59,8 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
 
     // initialize time to 0
     t->time = 0LU;
-    t->frames_per_step = 10;
+    t->frames_per_step = 16;
 
-
-    int8_t dx, dy;
-    {
-        printf("0->R\t");
-        for_each_displacement_trial(PIECE_I, 0, ROTATE_CLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
-    {
-        printf("R->0\t");
-        for_each_displacement_trial(PIECE_I, 1, ROTATE_COUNTERCLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
-    {
-        printf("R->2\t");
-        for_each_displacement_trial(PIECE_I, 1, ROTATE_CLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
-    {
-        printf("2->R\t");
-        for_each_displacement_trial(PIECE_I, 2, ROTATE_COUNTERCLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
-    {
-        printf("2->L\t");
-        for_each_displacement_trial(PIECE_I, 2, ROTATE_CLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
-    {
-        printf("L->2\t");
-        for_each_displacement_trial(PIECE_I, 3, ROTATE_COUNTERCLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
-    {
-        printf("L->0\t");
-        for_each_displacement_trial(PIECE_I, 3, ROTATE_CLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
-    {
-        printf("0->L\t");
-        for_each_displacement_trial(PIECE_I, 0, ROTATE_COUNTERCLOCKWISE, dx, dy) {
-            printf("(%2d, %2d), ", dx, dy);
-        }
-        printf("\n");
-    }
 }
 
 
@@ -236,9 +179,20 @@ static int _move_piece(tetris_t *t, int dx, int dy) {
 }
 
 
+/*
+ * rotate the following piece either clockwise or counterclockwise, depending
+ * on the parameter rotation. If unsuccessful, we attempt to place the piece
+ * in up to 4 more locations offset from where it would naturally end up,
+ * which depend on the current orientation and rotation
+ *
+ * If all attempts to place the piece fail, 0 is returned and the piece is put
+ * back where it was, otherwise 1 is returned and the piece is placed in the
+ * new location
+ */
 static int _rotate_piece(tetris_t *t, int rotation) {
     piece_t falling;
     piece_t new_falling;
+    int8_t dx, dy;
 
     falling = t->falling_piece;
 
@@ -249,18 +203,40 @@ static int _rotate_piece(tetris_t *t, int rotation) {
     new_falling = falling;
     piece_rotate(&new_falling, rotation);
 
-    // check to see if there would be any collisions here
-    if (_piece_collides(t, new_falling)) {
-        // then the piece cannot move, so put it back
-        _place_piece(t, falling);
-        return 0;
+    if (falling.piece_idx == PIECE_O) {
+        // this piece cannot be rotated, so we don't loop
+
+        // check to see if there would be any collisions here
+        if (!_piece_collides(t, new_falling)) {
+            // the piece can now be moved down into the new location
+            _place_piece(t, new_falling);
+            t->falling_piece = new_falling;
+            return 1;
+        }
     }
     else {
-        // otherwise, the piece can now be moved down into the new location
-        _place_piece(t, new_falling);
-        t->falling_piece = new_falling;
-        return 1;
+        for_each_displacement_trial(falling.piece_idx, falling.orientation,
+                rotation, dx, dy) {
+
+            piece_move(&new_falling, dx, dy);
+
+            // check to see if there would be any collisions here
+            if (!_piece_collides(t, new_falling)) {
+                // the piece can now be moved down into the new location
+                _place_piece(t, new_falling);
+                t->falling_piece = new_falling;
+                return 1;
+            }
+
+            // move it back before next iteration
+            piece_move(&new_falling, -dx, -dy);
+        }
     }
+
+    // there were no suitable locations for the piece, so put it back where it
+    // was
+    _place_piece(t, falling);
+    return 0;
 }
 
 
@@ -298,7 +274,10 @@ static int _advance(tetris_t *t) {
             int placed = _place_piece(t, falling);
 
             if (t->falling_status & HIT_GROUND_LAST_FRAME) {
+                // if the piece spend two successive frames hitting the ground,
+                // we stick it wherever it is
                 t->falling_status &= ~HIT_GROUND_LAST_FRAME;
+                t->ground_hit_count = 0;
 
                 if (!placed) {
                     // if we could not place this piece even partially on the
@@ -326,6 +305,7 @@ static int _advance(tetris_t *t) {
             // unset hit ground last frame flag, in case it was set and the
             // piece was subsequently moved off the platform
             t->falling_status &= ~HIT_GROUND_LAST_FRAME;
+            t->ground_hit_count = 0;
             // that is the completion of this move
             break;
         }
@@ -336,23 +316,27 @@ static int _advance(tetris_t *t) {
 
 
 static void _handle_event(tetris_t *t, key_event *ev) {
-    
+
+    // res is set if the falling piece was successfully moved to a new location
+    // due to one of the following move/rotate methods
+    int res = 0;
+
     if (ev->action == GLFW_PRESS || ev->action == GLFW_REPEAT) {
         switch (ev->key) {
             case GLFW_KEY_LEFT:
-                _move_piece(t, -1, 0);
+                res = _move_piece(t, -1, 0);
                 break;
             case GLFW_KEY_RIGHT:
-                _move_piece(t, 1, 0);
+                res = _move_piece(t, 1, 0);
                 break;
             case GLFW_KEY_DOWN:
                 t->falling_status |= FAST_FALLING;
                 break;
             case GLFW_KEY_A:
-                _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
+                res = _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
                 break;
             case GLFW_KEY_D:
-                _rotate_piece(t, ROTATE_CLOCKWISE);
+                res = _rotate_piece(t, ROTATE_CLOCKWISE);
                 break;
         }
     }
@@ -362,6 +346,17 @@ static void _handle_event(tetris_t *t, key_event *ev) {
                 t->falling_status &= ~FAST_FALLING;
                 break;
         }
+    }
+
+    // if we successfully moved/rotated the piece, and the ground was hit last
+    // frame, then we unset the hit ground last frame flag to give it another
+    // frame before it gets stuck (unless we have already exceeded the maximum
+    // number of times we are allowed to do this)
+    if (res && (t->falling_status & HIT_GROUND_LAST_FRAME) &&
+            t->ground_hit_count < MAX_GROUND_HIT_COUNT) {
+
+        t->falling_status &= ~HIT_GROUND_LAST_FRAME;
+        t->ground_hit_count++;
     }
 }
 
