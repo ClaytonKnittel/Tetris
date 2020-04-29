@@ -11,10 +11,28 @@
 #define TETRIS_HEIGHT 20
 
 
+/*
+ * game states
+ */
+#define PLAY 0
+#define PAUSED 1
+#define GAME_OVER 2
+
+
 
 typedef struct tetris {
     // piece currently being controlled by player
     piece_t falling_piece;
+
+    /* status of the game, can be one of
+     *  PLAY: normal running state
+     *  PAUSED: paused
+     *  GAME_OVER: game has ended because player lost
+     */
+    uint8_t state;
+
+    // align piece_queue to dword
+    char __attribute__((aligned(8))) __pad[0];
 
     /*
      * queue of next 14 pieces (2 sets of 7)
@@ -26,7 +44,7 @@ typedef struct tetris {
      * lookahead can go beyond just the next piece
      */
     uint8_t piece_queue[2 * N_PIECES];
-    uint32_t queue_idx;
+    uint16_t queue_idx;
 
     // graphics object used to draw the game to the screen and to check if
     // tiles are empty or filled

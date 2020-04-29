@@ -22,5 +22,6 @@ else
 CFLAGS=-O0 -Wall -Wno-unused-function -MMD -MP -g3 -DDEBUG
 endif
 
-LDFLAGS=$(LFLAGS) $(GLLIBS)
+# -flto allows link-time optimization (like function inlining)
+LDFLAGS=$(LFLAGS) $(GLLIBS) -flto
 

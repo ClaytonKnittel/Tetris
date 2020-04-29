@@ -56,11 +56,14 @@ static void board_set_yscale(board_t *b, float yscale) {
 }
 
 
-static void board_set_tile(board_t *b, int32_t x, int32_t y,
+/*
+ * returns 0 if the tile could not be set, 1 otherwise
+ */
+static int board_set_tile(board_t *b, int32_t x, int32_t y,
         uint32_t tile_color) {
     // by comparing as unsigned, take care of negative case
     if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
-        return;
+        return 0;
     }
 
     uint32_t idx = y * b->width + x;
@@ -71,6 +74,7 @@ static void board_set_tile(board_t *b, int32_t x, int32_t y,
     tile_color <<= el_idx * LOG_N_STATES;
     b->color_idxs[color_idx] = (b->color_idxs[color_idx] & ~mask) |
         tile_color;
+    return 1;
 }
 
 static uint8_t board_get_tile(board_t *b, int32_t x, int32_t y) {
