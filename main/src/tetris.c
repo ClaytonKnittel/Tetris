@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include <math/combinatorics.h>
+#include <util.h>
 
 #include <tetris.h>
 
@@ -174,6 +175,8 @@ static int _piece_collides(tetris_t *t, piece_t piece) {
 
 
 
+
+
 /*
  * move the falling piece by dx, dy. If successful, the piece's location is
  * updated and 1 is returned, otherwise it is left where it was and 0 is
@@ -271,6 +274,9 @@ static int _rotate_piece(tetris_t *t, int rotation) {
 
 
 
+static void _piece_placed(tetris_t *t);
+
+
 /*
  * advances game state by one step. If it was successfully able to do so, then
  * 1 is returned, otherwise, if the game ended due to a game over, 0 is
@@ -316,6 +322,9 @@ static int _advance(tetris_t *t) {
                     return 0;
                 }
 
+                // on a successful place, make this call to check for filled rows
+                _piece_placed(t);
+
                 piece_init(&t->falling_piece, EMPTY, 0, 0);
                 // now need to move the new falling piece down
                 continue;
@@ -343,6 +352,42 @@ static int _advance(tetris_t *t) {
     }
 
     return 1;
+}
+
+
+
+/*
+ * to be called whenever a piece sticks to the ground (to check for row
+ * clearing)
+ */
+static void _piece_placed(tetris_t *t) {
+    // check the rows of the currently falling piece
+    // just to be safe, we check the entire bounding box
+
+    int32_t bot = MAX(t->falling_piece.board_y, 0);
+    int32_t top = MIN(t->falling_piece.board_y + PIECE_BB_H, t->board.height);
+
+    int32_t r;
+    int32_t dst_row = bot;
+
+    for (r = bot; r < top; r++) {
+
+        if (dst_row != r) {
+            board_copy_row(&t->board, dst_row, r);
+        }
+
+        if (!board_row_full(&t->board, dst_row)) {
+            dst_row++;
+        }
+    }
+    if (r != dst_row) {
+        for (; r < t->board.height; r++, dst_row++) {
+            board_copy_row(&t->board, dst_row, r);
+        }
+        for (; dst_row < t->board.height; dst_row++) {
+            board_clear_row(&t->board, dst_row);
+        }
+    }
 }
 
 

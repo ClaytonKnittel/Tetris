@@ -95,6 +95,37 @@ static uint8_t board_get_tile(board_t *b, int32_t x, int32_t y) {
     return set & COLOR_IDX_MASK;
 }
 
+
+/*
+ * retusn 1 if the given row is full on the board (all nonzero entries), else 0
+ */
+static int board_row_full(board_t *b, int32_t row) {
+    for (int32_t col = 0; col < b->width; col++) {
+        if (board_get_tile(b, col, row) == EMPTY) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+ * copies the entirety of src_row into dst_row
+ * TODO optimize
+ */
+static void board_copy_row(board_t *b, int32_t dst_row, int32_t src_row) {
+    for (int32_t col = 0; col < b->width; col++) {
+        board_set_tile(b, col, dst_row, board_get_tile(b, col, src_row));
+    }
+}
+
+static void board_clear_row(board_t *b, int32_t row) {
+    for (int32_t col = 0; col < b->width; col++) {
+        board_set_tile(b, col, row, EMPTY);
+    }
+}
+
+
 void board_draw(board_t *b);
 
 

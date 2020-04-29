@@ -8,6 +8,10 @@
 #define ROTATE_CLOCKWISE 1
 #define ROTATE_COUNTERCLOCKWISE -1
 
+// max bounding-box widths and heights for any piece
+#define PIECE_BB_W 4
+#define PIECE_BB_H 4
+
 
 #define EMPTY 0
 

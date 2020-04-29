@@ -13,3 +13,7 @@ static float int_to_float(uint32_t i) {
     return __v.fval;
 }
 
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
