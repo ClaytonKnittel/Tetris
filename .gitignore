@@ -3,3 +3,4 @@ bin
 lib
 *.o
 *.d
+.DS_Store
