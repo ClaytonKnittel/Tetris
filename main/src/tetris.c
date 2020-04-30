@@ -55,6 +55,99 @@ static void _init_controller(controller *ctrl) {
 }
 
 
+
+static void _init_clear_animator(clear_animator *a) {
+    __builtin_memset(a, 0, sizeof(clear_animator));
+}
+
+
+/*
+ * cleares the next row of tiles in the clear animation and updates the state
+ * of the clear animator
+ */
+static void _clear_next_row(tetris_t *t) {
+    clear_animator *a = &t->c_anim;
+    int8_t start_row = canim_get_start_row(a);
+
+    int8_t l_col = a->l_col;
+    int8_t r_col = a->r_col;
+
+    // for each possible row being cleared (up to the height of the peice
+    // box), check if it is in the set of lines to be cleared, and if so,
+    // clear another column from it
+    for (uint8_t i = 0; i < PIECE_BB_H; i++) {
+        if (canim_is_row_idx_set(a, i)) {
+            // row is in the set of rows to be cleared
+            uint8_t r = start_row + i;
+
+            // clear the columns if they are in range of the board
+            if (l_col >= 0) {
+                board_set_tile(&t->board, l_col, r, EMPTY);
+            }
+            if (r_col < t->board.width) {
+                board_set_tile(&t->board, r_col, r, EMPTY);
+            }
+        }
+    }
+
+    // advance both columns
+    canim_inc_cols(a);
+
+}
+
+
+/*
+ * returns 1 if the clear animation has complete, 0 otherwise
+ */
+static int _clear_animation_done(tetris_t *t) {
+    clear_animator *a = &t->c_anim;
+
+    return a->l_col < 0 && a->r_col >= t->board.width;
+}
+
+
+/*
+ * after clear animation has complete, goes through and drops down the rows
+ * above the cleared row to fill in the gap and sets the game state back to
+ * play
+ */
+static void _finish_clear_animation(tetris_t *t) {
+    clear_animator *c_anim = &t->c_anim;
+
+    int8_t row = canim_get_start_row(c_anim);
+    int8_t dst_row = row;
+
+    // topple down all rows that 
+    for (int i = 0; i < PIECE_BB_H; i++) {
+
+        if (!canim_is_row_idx_set(c_anim, i)) {
+            // if this row is not set, then we have to move it down
+            if (dst_row != row) {
+                // if the current row is not empty and dst_row has already been
+                // offset from row, we need to topple row down to dst_row
+                board_copy_row(&t->board, dst_row, row);
+            }
+
+            dst_row++;
+        }
+        row++;
+    }
+    // topple down remaining rows
+    for (; row < t->board.height; row++, dst_row++) {
+        board_copy_row(&t->board, dst_row, row);
+    }
+
+    // clear the top most rows which were already toppled but not overwritten
+    for (; dst_row < t->board.height; dst_row++) {
+        board_clear_row(&t->board, dst_row);
+    }
+
+    // now may resume the game
+    t->state = PLAY;
+}
+
+
+
 void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
         float screen_width, float screen_height) {
 
@@ -79,6 +172,10 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     _init_fp_data(&t->fp_data);
 
     _init_controller(&t->ctrl);
+    
+    // note: do not need to initialize clear animator, as it is only accessed
+    // when in clear animation state, and will be initialized when we enter
+    // that state
 
     t->state = PLAY;
 
@@ -274,6 +371,7 @@ static int _rotate_piece(tetris_t *t, int rotation) {
 
 
 
+// forward declaration
 static void _piece_placed(tetris_t *t);
 
 
@@ -287,7 +385,12 @@ static void _piece_placed(tetris_t *t);
 static int _advance(tetris_t *t) {
     piece_t falling;
 
-    for (;;) {
+    // we may loop once if a piece is placed and the new falling piece has to
+    // be moved down one row. However, if in placing the piece we trigger an
+    // animation (which would change the state of the game from PLAY), we do
+    // not want to initialize the new piece or move it down
+    while (t->state == PLAY) {
+
         falling = t->falling_piece;
         if (falling.piece_idx == EMPTY) {
             // need to fetch next piece
@@ -364,29 +467,38 @@ static void _piece_placed(tetris_t *t) {
     // check the rows of the currently falling piece
     // just to be safe, we check the entire bounding box
 
+    // use placeholder clear animator to write data to while we are going, and
+    // if there happens to be at least one row that needs to be clear, we will
+    // copy this clear animator over to the actual clear animator and set the
+    // game state to clear animation
+    clear_animator c_anim_tmp;
+    _init_clear_animator(&c_anim_tmp);
+
+    // check the only rows that contain possibly modified tiles
     int32_t bot = MAX(t->falling_piece.board_y, 0);
     int32_t top = MIN(t->falling_piece.board_y + PIECE_BB_H, t->board.height);
 
     int32_t r;
-    int32_t dst_row = bot;
+
+    // if we end up needing to start the clear animation, the start row will be
+    // bot (snap the bottom down to the 4th to last row if it is any higher,
+    // so that every row in the bitvector will correspond to a real row on the
+    // board)
+    int32_t anim_bot = MIN(bot, t->board.height - PIECE_BB_H);
+    canim_set_start_row(&c_anim_tmp, anim_bot);
 
     for (r = bot; r < top; r++) {
-
-        if (dst_row != r) {
-            board_copy_row(&t->board, dst_row, r);
-        }
-
-        if (!board_row_full(&t->board, dst_row)) {
-            dst_row++;
+        if (board_row_full(&t->board, r)) {
+            canim_set_row_idx(&c_anim_tmp, r - anim_bot);
         }
     }
-    if (r != dst_row) {
-        for (; r < t->board.height; r++, dst_row++) {
-            board_copy_row(&t->board, dst_row, r);
-        }
-        for (; dst_row < t->board.height; dst_row++) {
-            board_clear_row(&t->board, dst_row);
-        }
+
+    if (canim_any_rows_set(&c_anim_tmp)) {
+        // if any rows were found to be clear, we have to do the clear animation!
+        c_anim_tmp.l_col = 4;
+        c_anim_tmp.r_col = 5;
+        t->c_anim = c_anim_tmp;
+        t->state = CLEAR_ANIMATION;
     }
 }
 
@@ -519,36 +631,53 @@ void tetris_step(tetris_t *t) {
         _handle_event(t, &ev);
     }
 
-    if (t->state != PLAY) {
-        // don't advance time if not in the play state
-        return;
+    switch (t->state) {
+        case PLAY:
+
+            if (_is_major_time_step(t)) {
+                // advance game state
+                could_advance = _advance(t);
+
+                if (!could_advance) {
+                    // game is over
+                    t->state = GAME_OVER;
+                    printf("Game over\n");
+                }
+
+                // check to see if min y has increased
+                if (t->fp_data.min_h > t->falling_piece.board_y) {
+                    t->fp_data.min_h = t->falling_piece.board_y;
+                    t->fp_data.min_h_inc_time = 0;
+                }
+                else {
+                    t->fp_data.min_h_inc_time++;
+                }
+            }
+            else if (_is_minor_time_step(t)) {
+                _handle_ctrl_callbacks(t);
+
+            }
+
+            break;
+
+        case GAME_OVER:
+            // don't advance time if the game is over
+            return;
+
+        case CLEAR_ANIMATION:
+            // clear animation runs on minor time steps
+            if (_is_minor_time_step(t)) {
+                _clear_next_row(t);
+
+                if (_clear_animation_done(t)) {
+                    _finish_clear_animation(t);
+                }
+            }
+            break;
+        default:
+            // cannot possibly get here
+            __builtin_unreachable();
     }
-
-
-    if (_is_major_time_step(t)) {
-        // advance game state
-        could_advance = _advance(t);
-
-        if (!could_advance) {
-            // game is over
-            t->state = GAME_OVER;
-            printf("Game over\n");
-        }
-
-        // check to see if min y has increased
-        if (t->fp_data.min_h > t->falling_piece.board_y) {
-            t->fp_data.min_h = t->falling_piece.board_y;
-            t->fp_data.min_h_inc_time = 0;
-        }
-        else {
-            t->fp_data.min_h_inc_time++;
-        }
-    }
-    else if (_is_minor_time_step(t)) {
-        _handle_ctrl_callbacks(t);
-
-    }
-
 
     t->time++;
 }
