@@ -115,8 +115,12 @@ void board_destroy(board_t *b) {
 void board_draw(board_t *b) {
     gl_use_program(&b->p);
 
-    // send over all color information about tiles
-    glUniform1uiv(b->color_idxs_loc, b->width * b->height, b->color_idxs);
+    if (b->tiles_changed) {
+        // send over all color information about tiles
+        glUniform1uiv(b->color_idxs_loc, b->width * b->height, b->color_idxs);
+
+        b->tiles_changed = 0;
+    }
 
     shape_draw_instanced(&b->tile_prot, b->width * b->height);
 }

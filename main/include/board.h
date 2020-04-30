@@ -31,6 +31,9 @@ typedef struct board {
     // width and height of board, in tiles
     uint32_t width, height;
 
+    // set whenever any of the tiles on the board have been changed
+    int tiles_changed;
+
     program p;
     // see board.vs for descriptions of these
     GLuint color_array_loc, color_idxs_loc;
@@ -65,6 +68,8 @@ static int board_set_tile(board_t *b, int32_t x, int32_t y,
     if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
         return 0;
     }
+
+    b->tiles_changed = 1;
 
     uint32_t idx = y * b->width + x;
     uint32_t color_idx = idx / COLOR_IDXS_PER_INT;

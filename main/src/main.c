@@ -7,30 +7,36 @@
 #include <gl/shader.h>
 
 #include <tetris.h>
+#include <frame.h>
 
 
-#define BOARD_W 10
-#define BOARD_H 20
-
-// dimension of single tile in pixels
-#define TILE_SIZE 40
+#define WIDTH 1024
+#define HEIGHT 780
 
 
 int main(int argc, char *argv[]) {
     gl_context c;
     tetris_t t;
+    frame_t f;
 
-    gl_init(&c, BOARD_W * TILE_SIZE, BOARD_H * TILE_SIZE);
+    gl_init(&c, WIDTH, HEIGHT);
     c.user_data = (void*) &t;
 
     color_t bg = gen_color(3, 30, 48, 255);
     gl_set_bg_color(bg);
 
+
+    float w = 2.f * ((float) HEIGHT) / ((float) WIDTH) * ((float) TETRIS_WIDTH) / ((float) TETRIS_HEIGHT);
     vec2 pos = {
-        .x = -1.f,
+        .x = -w / 2.f,
         .y = -1.f
     };
-    tetris_init(&t, &c, pos, 2.f, 2.f);
+    tetris_init(&t, &c, pos, w, 2.f);
+
+    frame_init(&f, TETRIS_WIDTH, TETRIS_HEIGHT);
+    frame_set_pos(&f, -w / 2.f, -1.f);
+    frame_set_xscale(&f, w);
+    frame_set_yscale(&f, 2.f);
 
 
     while (!gl_should_exit(&c)) {
@@ -39,11 +45,13 @@ int main(int argc, char *argv[]) {
         tetris_step(&t);
 
         board_draw(&t.board);
+        frame_draw(&f);
 
         gl_render(&c);
         glfwPollEvents();
     }
 
+    frame_destroy(&f);
     tetris_destroy(&t);
     gl_exit(&c);
 
