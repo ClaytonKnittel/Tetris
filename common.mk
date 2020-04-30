@@ -1,7 +1,7 @@
 CC=gcc
 AR=ar
 
-BASE_DIR=${CURDIR}
+BASE_DIR=$(shell pwd)
 GAMEDIR=$(BASE_DIR)/main
 LIBDIR=$(BASE_DIR)/glib
 
