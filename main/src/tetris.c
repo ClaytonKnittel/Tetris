@@ -437,6 +437,12 @@ static int _advance(tetris_t *t) {
                 // this flag and allow the player to try moving the piece again
                 // before it sticks
                 t->fp_data.falling_status |= HIT_GROUND_LAST_FRAME;
+
+                // artificially advance time forward to
+                // CTRL_HIT_GROUND_LAST_DELAY ticks before the next major time
+                // step
+                t->time += (t->major_tick_count - MIN(t->major_tick_count,
+                            CTRL_HIT_GROUND_LAST_DELAY));
                 break;
             }
         }
@@ -484,7 +490,7 @@ static void _piece_placed(tetris_t *t) {
     // bot (snap the bottom down to the 4th to last row if it is any higher,
     // so that every row in the bitvector will correspond to a real row on the
     // board)
-    int32_t anim_bot = MIN(bot, t->board.height - PIECE_BB_H);
+    int32_t anim_bot = MIN(bot, t->board.height - PIECE_BB_H - 1);
     canim_set_start_row(&c_anim_tmp, anim_bot);
 
     for (r = bot; r < top; r++) {

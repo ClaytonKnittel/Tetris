@@ -51,6 +51,11 @@
 #define REPEAT_TIMER 2
 
 
+// number of frames (not time steps) between a ground hit detection and the
+// time the ground hit will be tested again
+#define CTRL_HIT_GROUND_LAST_DELAY 6
+
+
 typedef struct falling_piece_data {
 
     /*
@@ -99,6 +104,12 @@ typedef struct controller {
 } controller;
 
 
+#define is_key_pressed(tet, key) \
+    ((tet)->ctrl.keypress_flags & (key))
+
+
+#define is_only_key_pressed(tet, key) \
+    ((tet)->ctrl.keypress_flags == (key))
 
 
 /*
