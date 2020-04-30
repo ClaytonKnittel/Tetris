@@ -1,11 +1,11 @@
 #!/usr/bin/sh
 
-if [ -f "/Library/Frameworks/OpenGL.framework" ]
+if [ ! hash brew 2>/dev/null ]
 then
-    echo "Could not find directory /Library/Frameworks"
-    exit -1
+    /bin/bash -c "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 fi
 
-
-
+# install the 2 dependencies
+brew install glew
+brew install glfw3
 

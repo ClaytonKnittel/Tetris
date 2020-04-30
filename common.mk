@@ -12,7 +12,7 @@ IFLAGS=-I$(GAMEDIR)/include -I$(LIBDIR)/include
 LFLAGS=-L$(LDIR)
 
 #opengl libraries
-GLLIBS=-lglew.2.1 -lglfw.3.2 -framework OpenGL
+GLLIBS=-lglew.2.1 -lglfw.3.3 -framework OpenGL
 
 DEBUG=1
 
