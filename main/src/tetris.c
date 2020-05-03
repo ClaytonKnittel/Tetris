@@ -545,6 +545,9 @@ static void _handle_event(tetris_t *t, key_event *ev) {
                 res = _move_piece(t, 1, 0);
                 t->ctrl.keypress_flags |= RIGHT_KEY;
                 break;
+            case GLFW_KEY_UP:
+                res = _rotate_piece(t, ROTATE_CLOCKWISE);
+                break;
             case GLFW_KEY_DOWN:
                 t->ctrl.keypress_flags |= DOWN_KEY;
                 break;

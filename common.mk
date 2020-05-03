@@ -8,7 +8,7 @@ LIBDIR=$(BASE_DIR)/glib
 LDIR=$(BASE_DIR)/lib
 BDIR=$(BASE_DIR)/bin
 
-IFLAGS=-I$(GAMEDIR)/include -I$(LIBDIR)/include
+IFLAGS=-I$(GAMEDIR)/include -I$(LIBDIR)/include $(shell pkg-config --cflags freetype2)
 LFLAGS=-L$(LDIR)
 
 #opengl libraries
@@ -23,5 +23,5 @@ CFLAGS=-O0 -Wall -Wno-unused-function -MMD -MP -g3 -DDEBUG
 endif
 
 # -flto allows link-time optimization (like function inlining)
-LDFLAGS=$(LFLAGS) $(GLLIBS) -flto
+LDFLAGS=$(LFLAGS) $(GLLIBS) -flto -lfreetype
 

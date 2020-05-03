@@ -43,8 +43,8 @@
 
 // key flags
 #define DOWN_KEY 0x1
-#define LEFT_KEY 0x2
-#define RIGHT_KEY 0x4
+#define LEFT_KEY 0x4
+#define RIGHT_KEY 0x8
 
 // number of frames a key needs to be held down before it is continually
 // repeated

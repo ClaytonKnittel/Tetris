@@ -8,6 +8,7 @@
 
 #include <tetris.h>
 #include <frame.h>
+#include <font.h>
 
 
 #define WIDTH 1024
@@ -18,9 +19,14 @@ int main(int argc, char *argv[]) {
     gl_context c;
     tetris_t t;
     frame_t f;
+    font_t font;
+
+
 
     gl_init(&c, WIDTH, HEIGHT);
     c.user_data = (void*) &t;
+
+    font_init(&font, "fonts/8bit_font.ttf", 12lu);
 
     color_t bg = gen_color(3, 30, 48, 255);
     gl_set_bg_color(bg);
