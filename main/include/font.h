@@ -5,6 +5,7 @@
 #include FT_FREETYPE_H
 
 #include <gl/shader.h>
+#include <gl/color.h>
 
 
 // maximum number of characters that can be drawn in 1 draw call
@@ -52,6 +53,7 @@ typedef struct font {
 
     // uniform location of font color
     GLuint font_color_loc;
+    color_t font_color;
 
     // shader program
     program p;
@@ -71,6 +73,10 @@ typedef struct font {
 int font_init(font_t *f, const char * font_path, uint64_t font_height);
 
 void font_destroy(font_t *f);
+
+static void font_set_color(font_t *f, color_t color) {
+    f->font_color = color;
+}
 
 /*
  * renders text starting at position (x_pos, y_pos) (top left of first letter),

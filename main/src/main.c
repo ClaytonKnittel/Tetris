@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
     frame_set_yscale(&f, 2.f);
 
 
+    float ti = 0;
     while (!gl_should_exit(&c)) {
         gl_clear(&c);
 
@@ -54,7 +55,13 @@ int main(int argc, char *argv[]) {
         //board_draw(&t.board);
         //frame_draw(&f);
 
-        font_render(&font, "Tetris 101", -.2f, .5f, .7f, .1f);
+        font_set_color(&font, gen_color((int) (150 + 100.f * sin(ti / 50.f)),
+                                        (int) (100 + 50.f  * sin(ti / 70.f)),
+                                        (int) (200 + 55.f  * sin(ti / 80.f)), 255));
+        ti++;
+
+        font_render(&font, "Tetris 101 is on repeat for a"
+                " while since we are testing", -.2f, .5f, 1.2f, .1f);
 
         gl_render(&c);
         glfwPollEvents();

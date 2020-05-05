@@ -5,6 +5,7 @@
 
 #include <font.h>
 #include <util.h>
+#include <gl/color.h>
 
 
 // number of floats sent to GPU per vertex being drawn
@@ -129,6 +130,11 @@ int font_init(font_t *f, const char * font_path, uint64_t font_height) {
     gl_load_program(&f->p, "main/res/font.vs", "main/res/font.fs");
     gl_use_program(&f->p);
 
+    f->font_color_loc = gl_uniform_location(&f->p, "font_color");
+    glCheckError();
+    // black by default
+    f->font_color = gen_color(0, 0, 0, 255);
+
     // now transfer the texture buffer over
     glGenTextures(1, &f->texture);
     glBindTexture(GL_TEXTURE_2D, f->texture);
@@ -185,6 +191,11 @@ void font_destroy(font_t *f) {
 void font_render(font_t *f, const char * text, float x_pos, float y_pos,
         float width, float line_height) {
 
+    if (text[0] == '\0') {
+        // ignore call to draw nothing
+        return;
+    }
+
     // buffer which will hold data to be sent to GPU
     float buffer_data[FONT_MAX_STR_LEN * VERTS_PER_CHAR * DATA_PER_VERT];
 
@@ -198,100 +209,116 @@ void font_render(font_t *f, const char * text, float x_pos, float y_pos,
     // factor by which units in pixels convert to normalized screen coords
     float px_to_norm = line_height / (float) f->tex_height;
 
-    if (strlen(text) > FONT_MAX_STR_LEN) {
-        fprintf(stderr, "Can't render font of long\n");
-        return;
-    }
+    // make initializing render calls
+    gl_use_program(&f->p);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, f->texture);
+    glBindVertexArray(f->vao);
+
+    // update color of font
+    float color_vec[4] = {
+        color_r(f->font_color),
+        color_g(f->font_color),
+        color_b(f->font_color),
+        color_a(f->font_color)
+    };
+    glUniform4fv(f->font_color_loc, 1, color_vec);
 
     uint32_t i;
 
-    for (i = 0; text[i] != '\0'; i++) {
+    while (1) {
 
-        FT_UInt glyph_idx = FT_Get_Char_Index(f->face, text[i]);
-        glyph *g = &f->glyphs[glyph_idx];
+        for (i = 0; i < FONT_MAX_STR_LEN && text[i] != '\0'; i++) {
 
-        float x1 = pen_x + (px_to_norm * g->bl);
-        float x2 = x1 + (px_to_norm * g->w);
+            FT_UInt glyph_idx = FT_Get_Char_Index(f->face, text[i]);
+            glyph *g = &f->glyphs[glyph_idx];
 
-        float y2 = pen_y - (px_to_norm * g->bt);
-        float y1 = y2 - (px_to_norm * g->h);
+            float x1 = pen_x + (px_to_norm * g->bl);
+            float x2 = x1 + (px_to_norm * g->w);
 
-        float tx1 = (float) g->x_off / (float) f->tex_width;
-        float tx2 = tx1 + ((float) g->w / (float) f->tex_width);
+            float y2 = pen_y - (px_to_norm * g->bt);
+            float y1 = y2 - (px_to_norm * g->h);
 
-        float ty1 = (float) g->y_off / (float) f->tex_height;
-        float ty2 = ty1 + ((float) g->h / (float) f->tex_height);
+            float tx1 = (float) g->x_off / (float) f->tex_width;
+            float tx2 = tx1 + ((float) g->w / (float) f->tex_width);
 
-        if (x2 > max_x && max_x != x_pos) {
-            // only skip to next line if we will overflow outside the width
-            // of the text box and this isn't the first character to be drawn
-            // on this line
-            pen_x = x_pos;
-            pen_y -= line_height;
+            float ty1 = (float) g->y_off / (float) f->tex_height;
+            float ty2 = ty1 + ((float) g->h / (float) f->tex_height);
+
+            if (x2 > max_x && pen_x != x_pos) {
+                // only skip to next line if we will overflow outside the width
+                // of the text box and this isn't the first character to be drawn
+                // on this line
+                pen_x = x_pos;
+                pen_y -= line_height;
+
+                // need to recalculate those values
+                i--;
+                continue;
+            }
+            else {
+                pen_x += (px_to_norm * g->ax) / 64.f;
+                pen_y += (px_to_norm * g->ay) / 64.f;
+            }
+
+            float *char_buf = &buffer_data[i * VERTS_PER_CHAR * DATA_PER_VERT];
+
+            // (0, 0)
+            char_buf[ 0] = x1;
+            char_buf[ 1] = y1;
+            char_buf[ 2] = tx1;
+            char_buf[ 3] = ty1;
+
+            // (1, 0)
+            char_buf[ 4] = x2;
+            char_buf[ 5] = y1;
+            char_buf[ 6] = tx2;
+            char_buf[ 7] = ty1;
+
+            // (1, 1)
+            char_buf[ 8] = x2;
+            char_buf[ 9] = y2;
+            char_buf[10] = tx2;
+            char_buf[11] = ty2;
+
+            // (1, 1)
+            char_buf[12] = x2;
+            char_buf[13] = y2;
+            char_buf[14] = tx2;
+            char_buf[15] = ty2;
+
+            // (0, 1)
+            char_buf[16] = x1;
+            char_buf[17] = y2;
+            char_buf[18] = tx1;
+            char_buf[19] = ty2;
+
+            // (0, 0)
+            char_buf[20] = x1;
+            char_buf[21] = y1;
+            char_buf[22] = tx1;
+            char_buf[23] = ty1;
+
+        }
+
+        uint64_t n_verts = i * VERTS_PER_CHAR;
+        uint64_t n_bytes = n_verts * DATA_PER_VERT * sizeof(float);
+
+        glBindBuffer(GL_ARRAY_BUFFER, f->vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, n_bytes, buffer_data);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        glDrawArrays(GL_TRIANGLES, 0, n_verts);
+
+        if (text[i] != '\0') {
+            // make another iteration
+            text += i;
+            continue;
         }
         else {
-            pen_x += (px_to_norm * g->ax) / 64.f;
-            pen_y += (px_to_norm * g->ay) / 64.f;
+            break;
         }
-
-        float *char_buf = &buffer_data[i * VERTS_PER_CHAR * DATA_PER_VERT];
-
-        // (0, 0)
-        char_buf[ 0] = x1;
-        char_buf[ 1] = y1;
-        char_buf[ 2] = tx1;
-        char_buf[ 3] = ty1;
-
-        // (1, 0)
-        char_buf[ 4] = x2;
-        char_buf[ 5] = y1;
-        char_buf[ 6] = tx2;
-        char_buf[ 7] = ty1;
-
-        // (1, 1)
-        char_buf[ 8] = x2;
-        char_buf[ 9] = y2;
-        char_buf[10] = tx2;
-        char_buf[11] = ty2;
-
-        // (1, 1)
-        char_buf[12] = x2;
-        char_buf[13] = y2;
-        char_buf[14] = tx2;
-        char_buf[15] = ty2;
-
-        // (0, 1)
-        char_buf[16] = x1;
-        char_buf[17] = y2;
-        char_buf[18] = tx1;
-        char_buf[19] = ty2;
-
-        // (0, 0)
-        char_buf[20] = x1;
-        char_buf[21] = y1;
-        char_buf[22] = tx1;
-        char_buf[23] = ty1;
-
     }
-
-    gl_use_program(&f->p);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, f->texture);
-
-    glBindVertexArray(f->vao);
-
-    uint64_t n_verts = i * VERTS_PER_CHAR;
-    uint64_t n_bytes = n_verts * DATA_PER_VERT * sizeof(float);
-
-
-    glBindBuffer(GL_ARRAY_BUFFER, f->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, n_bytes, buffer_data);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glBindTexture(GL_TEXTURE_2D, f->texture);
-
-    glDrawArrays(GL_TRIANGLES, 0, n_verts);
 
     glBindVertexArray(0);
 }

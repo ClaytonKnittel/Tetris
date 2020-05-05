@@ -15,6 +15,6 @@ out vec4 p_color;
 void main() {
     float alpha = texture(font_atlas, fs_tex_coords).r;
     vec4 smp = vec4(1.f, 1.f, 1.f, alpha);
-    p_color = /*font_color * */smp;
+    p_color = font_color * smp;
 }
 
