@@ -17,15 +17,25 @@
  * atlas
  */
 typedef struct glyph {
-    // x offset of lower left corner of glyph
+    // x offset of lower left corner of glyph in atlas texture
     uint32_t x_off;
-    // y offset of lower left corner of glyph
+    // y offset of lower left corner of glyph in atlas texture
     uint32_t y_off;
 
     // width of glyph
     uint32_t w;
     // height of glyph
     uint32_t h;
+
+    // x-offset of top left of bitmap from starting position
+    int32_t bl;
+    // y-offset of top left of bitmap from starting position
+    int32_t bt;
+
+    // amount to advance by in x direction for next character
+    int32_t ax;
+    // amount to advance by in y direction for next character
+    int32_t ay;
 } glyph;
 
 
@@ -33,12 +43,12 @@ typedef struct font {
     FT_Library library;
     FT_Face face;
 
-    // GL key for texture generated in init
-    GLuint texture;
-
     // width and height of full texture
     uint32_t tex_width;
     uint32_t tex_height;
+
+    // GL key for texture generated in init
+    GLuint texture;
 
     // uniform location of font color
     GLuint font_color_loc;
@@ -49,7 +59,7 @@ typedef struct font {
     // vao and vbo for font
     GLuint vao, vbo;
 
-    // list of x offsets of each character (indexed by char index) in texture
+    // list of metadata of each character (indexed by char index) for texture
     // atlas
     glyph *glyphs;
 } font_t;

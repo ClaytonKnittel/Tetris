@@ -78,17 +78,24 @@ int font_init(font_t *f, const char * font_path, uint64_t font_height) {
         f->glyphs[idx].y_off = 0;
         f->glyphs[idx].w = w;
         f->glyphs[idx].h = h;
+        f->glyphs[idx].bl = face->glyph->bitmap_left;
+        f->glyphs[idx].bt = face->glyph->bitmap_top;
+        f->glyphs[idx].ax = face->glyph->advance.x;
+        f->glyphs[idx].ay = face->glyph->advance.y;
 
         max_height = MAX(max_height, h);
-        cum_width += w;
+        // place 1-pixel boundaries between adjacent letters (so no leakage
+        // when drawing
+        cum_width += w + 1;
     }
-    f->tex_width = cum_width;
+    // width of memory buffer must be multiple of 4 bytes
+    f->tex_width = ALIGN_UP(cum_width, 4);
     f->tex_height = max_height;
 
-    tex_buf = (uint8_t*) malloc(cum_width * max_height * sizeof(uint8_t));
+    tex_buf = (uint8_t*) calloc(f->tex_width * f->tex_height, sizeof(uint8_t));
     if (tex_buf == NULL) {
         fprintf(stderr, "Could not malloc %lu bytes\n",
-                cum_width * max_height * sizeof(uint8_t));
+                f->tex_width * f->tex_height * sizeof(uint8_t));
         free(f->glyphs);
         FT_Done_Face(face);
         FT_Done_FreeType(library);
@@ -98,19 +105,29 @@ int font_init(font_t *f, const char * font_path, uint64_t font_height) {
     // now go through each texture again and write the bitmap buffer into
     // tex_buf
     for (FT_UInt idx = 0; idx < num_glyphs; idx++) {
-
         if (FT_Load_Glyph(face, idx, FT_LOAD_RENDER) != 0) {
             fprintf(stderr, "count not load glyph %u\n", idx);
             continue;
         }
 
+        glyph * g = &f->glyphs[idx];
         uint8_t * b = (uint8_t *) face->glyph->bitmap.buffer;
 
-        for (uint32_t row = 0; row < max_height; row++) {
-            __builtin_memcpy(&tex_buf[row * max_height + f->glyphs[idx].x_off],
-                    b, f->glyphs[idx].w * sizeof(uint8_t));
+        for (int row = 0; row < g->h; row++) {
+            for (int col = 0; col < g->w; col++) {
+                tex_buf[(row + g->y_off) * f->tex_width + (col + g->x_off)] =
+                    b[(g->h - row - 1) * g->w + col];
+            }
         }
+
+        /*for (uint32_t row = 0; row < max_height; row++) {
+            __builtin_memcpy(&tex_buf[row * f->tex_width + f->glyphs[idx].x_off],
+                    b, f->glyphs[idx].w * sizeof(uint8_t));
+        }*/
     }
+
+    gl_load_program(&f->p, "main/res/font.vs", "main/res/font.fs");
+    gl_use_program(&f->p);
 
     // now transfer the texture buffer over
     glGenTextures(1, &f->texture);
@@ -126,8 +143,6 @@ int font_init(font_t *f, const char * font_path, uint64_t font_height) {
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    //FT_UInt idx = FT_Get_Char_Index(face, ca);
-
     free(tex_buf);
 
 
@@ -139,19 +154,19 @@ int font_init(font_t *f, const char * font_path, uint64_t font_height) {
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
 
-    // position attribute
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
-            DATA_PER_VERT * sizeof(GL_FLOAT), (GLvoid*) 0);
-    // texture coordinates attribute
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
-            DATA_PER_VERT * sizeof(GL_FLOAT), (GLvoid*) (2 * sizeof(float)));
-
     // will be filled in render
     glGenBuffers(1, &f->vbo);
     glBindBuffer(GL_ARRAY_BUFFER, f->vbo);
     glBufferData(GL_ARRAY_BUFFER,
             FONT_MAX_STR_LEN * VERTS_PER_CHAR * DATA_PER_VERT * sizeof(float),
             NULL, GL_DYNAMIC_DRAW);
+
+    // position attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
+            DATA_PER_VERT * sizeof(GL_FLOAT), (GLvoid*) 0);
+    // texture coordinates attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
+            DATA_PER_VERT * sizeof(GL_FLOAT), (GLvoid*) (2 * sizeof(float)));
 
     glBindVertexArray(0);
 
@@ -160,6 +175,7 @@ int font_init(font_t *f, const char * font_path, uint64_t font_height) {
 
 
 void font_destroy(font_t *f) {
+    gl_unload_program(&f->p);
     free(f->glyphs);
     FT_Done_Face(f->face);
     FT_Done_FreeType(f->library);
@@ -182,16 +198,29 @@ void font_render(font_t *f, const char * text, float x_pos, float y_pos,
     // factor by which units in pixels convert to normalized screen coords
     float px_to_norm = line_height / (float) f->tex_height;
 
-    for (uint32_t i = 0; text[i] != '\0'; i++) {
+    if (strlen(text) > FONT_MAX_STR_LEN) {
+        fprintf(stderr, "Can't render font of long\n");
+        return;
+    }
 
-        FL_UInt glyph_idx = FT_Get_Char_index(f->face, text[i]);
+    uint32_t i;
+
+    for (i = 0; text[i] != '\0'; i++) {
+
+        FT_UInt glyph_idx = FT_Get_Char_Index(f->face, text[i]);
         glyph *g = &f->glyphs[glyph_idx];
 
-        float x1 = pen_x;
-        float x2 = pen_x + (px_to_norm * f->glyphs[i].w);
+        float x1 = pen_x + (px_to_norm * g->bl);
+        float x2 = x1 + (px_to_norm * g->w);
 
-        float y1 = pen_y - line_height;
-        float y2 = pen_y;
+        float y2 = pen_y - (px_to_norm * g->bt);
+        float y1 = y2 - (px_to_norm * g->h);
+
+        float tx1 = (float) g->x_off / (float) f->tex_width;
+        float tx2 = tx1 + ((float) g->w / (float) f->tex_width);
+
+        float ty1 = (float) g->y_off / (float) f->tex_height;
+        float ty2 = ty1 + ((float) g->h / (float) f->tex_height);
 
         if (x2 > max_x && max_x != x_pos) {
             // only skip to next line if we will overflow outside the width
@@ -200,45 +229,70 @@ void font_render(font_t *f, const char * text, float x_pos, float y_pos,
             pen_x = x_pos;
             pen_y -= line_height;
         }
+        else {
+            pen_x += (px_to_norm * g->ax) / 64.f;
+            pen_y += (px_to_norm * g->ay) / 64.f;
+        }
 
         float *char_buf = &buffer_data[i * VERTS_PER_CHAR * DATA_PER_VERT];
 
         // (0, 0)
         char_buf[ 0] = x1;
         char_buf[ 1] = y1;
-        char_buf[ 2] = g->x_off;
-        char_buf[ 3] = g->y_off;
+        char_buf[ 2] = tx1;
+        char_buf[ 3] = ty1;
 
         // (1, 0)
         char_buf[ 4] = x2;
         char_buf[ 5] = y1;
-        char_buf[ 6] = g->x_off + g->w;
-        char_buf[ 7] = g->y_off;
+        char_buf[ 6] = tx2;
+        char_buf[ 7] = ty1;
 
         // (1, 1)
         char_buf[ 8] = x2;
         char_buf[ 9] = y2;
-        char_buf[10] = g->x_off + g->w;
-        char_buf[11] = g->y_off + g->h;
+        char_buf[10] = tx2;
+        char_buf[11] = ty2;
 
         // (1, 1)
         char_buf[12] = x2;
         char_buf[13] = y2;
-        char_buf[14] = g->x_off + g->w;
-        char_buf[15] = g->y_off + g->h;
+        char_buf[14] = tx2;
+        char_buf[15] = ty2;
 
         // (0, 1)
         char_buf[16] = x1;
         char_buf[17] = y2;
-        char_buf[18] = g->x_off;
-        char_buf[19] = g->y_off + g->h;
+        char_buf[18] = tx1;
+        char_buf[19] = ty2;
 
         // (0, 0)
         char_buf[20] = x1;
         char_buf[21] = y1;
-        char_buf[22] = g->x_off;
-        char_buf[23] = g->y_off;
+        char_buf[22] = tx1;
+        char_buf[23] = ty1;
+
     }
 
+    gl_use_program(&f->p);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, f->texture);
+
+    glBindVertexArray(f->vao);
+
+    uint64_t n_verts = i * VERTS_PER_CHAR;
+    uint64_t n_bytes = n_verts * DATA_PER_VERT * sizeof(float);
+
+
+    glBindBuffer(GL_ARRAY_BUFFER, f->vbo);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, n_bytes, buffer_data);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glBindTexture(GL_TEXTURE_2D, f->texture);
+
+    glDrawArrays(GL_TRIANGLES, 0, n_verts);
+
+    glBindVertexArray(0);
 }
 

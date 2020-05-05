@@ -32,7 +32,8 @@ int main(int argc, char *argv[]) {
     gl_set_bg_color(bg);
 
 
-    float w = 2.f * ((float) HEIGHT) / ((float) WIDTH) * ((float) TETRIS_WIDTH) / ((float) TETRIS_HEIGHT);
+    float w = 2.f * ((float) HEIGHT) / ((float) WIDTH) *
+        ((float) TETRIS_WIDTH) / ((float) TETRIS_HEIGHT);
     vec2 pos = {
         .x = -w / 2.f,
         .y = -1.f
@@ -48,15 +49,18 @@ int main(int argc, char *argv[]) {
     while (!gl_should_exit(&c)) {
         gl_clear(&c);
 
-        tetris_step(&t);
+        //tetris_step(&t);
 
-        board_draw(&t.board);
-        frame_draw(&f);
+        //board_draw(&t.board);
+        //frame_draw(&f);
+
+        font_render(&font, "Tetris 101", -.2f, .5f, .7f, .1f);
 
         gl_render(&c);
         glfwPollEvents();
     }
 
+    font_destroy(&font);
     frame_destroy(&f);
     tetris_destroy(&t);
     gl_exit(&c);
