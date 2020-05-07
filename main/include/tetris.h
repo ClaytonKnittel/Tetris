@@ -181,6 +181,75 @@ typedef struct clear_animator {
 
 
 
+
+/*
+ *
+ * scorer handles both the counting of the score (single player) and the
+ * sending of lines to other players (multiplayer)
+ *
+ *
+ * Scoring rules:
+ *
+ * Single player:
+ *
+ *  Single:                  100 * lvl
+ *  Double:                  300 * lvl
+ *  T-Spin:                  400 * lvl
+ *  Triple:                  500 * lvl
+ *  Tetris/T-Spin Single:    800 * lvl
+ *  B2B Tetris /
+ *      B2B T-Spin Single /
+ *      T-Spin Double:      1200 * lvl
+ *  T-Spin Triple:          1600 * lvl
+ *  B2B T-Spin Double:      1800 * lvl
+ *  B2B T-Spin Triple:      2400 * lvl
+ *  Combo:                    50 * Combo len * lvl
+ *
+ *
+ * Single/Double/Triple/Tetris: awarded for clearing 1/2/3/4 total lines
+ *      in a single move (respectively)
+ *
+ * T-Spins:
+ *      - Tetromino being locked is T
+ *      - Last successful movement was a rotate
+ *      - 3 of the 4 squares diagonally adjacent to center of T are occupied
+ *
+ * B2B: this clear and last clear were both "hard" clears, which constitutes
+ *      one of the following:
+ *      - Tetris
+ *      - T-Spin Single/Double/Triple
+ */
+
+
+
+// move types
+#define MOVE_TRANSLATE  0x1
+#define MOVE_ROTATE     0x2
+
+
+// set if the last successful movement was a rotate
+#define SCORER_LAST_ACTION_WAS_ROTATE 0x1
+
+// set if the last clear was a "hard" clear (defined above)
+#define SCORER_LAST_CLEAR_WAS_HARD 0x2
+
+typedef struct scorer {
+    // where the above status flags are put
+    uint8_t status;
+
+
+    // when in single player mode, the current level
+    int8_t level;
+
+    // length of combo
+    int8_t combo_len;
+
+    // for single player mode, the current game score
+    int32_t score;
+} scorer_t;
+
+
+
 typedef struct tetris {
     // piece currently being controlled by player
     piece_t falling_piece;
@@ -190,6 +259,8 @@ typedef struct tetris {
 
     // for handling line clear animation
     clear_animator c_anim;
+
+    scorer_t scorer;
 
     /*
      * contains data about the current falling piece, like its location, type,

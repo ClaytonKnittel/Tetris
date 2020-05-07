@@ -147,6 +147,111 @@ static void _finish_clear_animation(tetris_t *t) {
 }
 
 
+static void _init_scorer(scorer_t *s) {
+    __builtin_memset(s, 0, sizeof(scorer_t));
+}
+
+/*
+ * to be called after a piece is placed. This method takes the game state
+ * struct, the number of rows cleared in the move, and the type of the piece
+ * which was just placed
+ */
+static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
+        uint8_t piece_type) {
+
+    int t_spin = 0;
+    int b2b = 0;
+
+    if (piece_type == PIECE_T &&
+            (t->scorer.status & SCORER_LAST_ACTION_WAS_ROTATE)) {
+
+        // check the four diagonally adjacent tiles to center of T piece to see
+        // if at least 3 are occupied
+        // note: center of piece is at (1, 1), relative to piece coordinates
+
+        int8_t x = t->falling_piece.board_x;
+        int8_t y = t->falling_piece.board_y;
+
+        int tot_occ = 0;
+        tot_occ += board_get_tile(&t->board, x, y) != EMPTY;
+        tot_occ += board_get_tile(&t->board, x + 2, y) != EMPTY;
+        tot_occ += board_get_tile(&t->board, x, y + 2) != EMPTY;
+        tot_occ += board_get_tile(&t->board, x + 2, y + 2) != EMPTY;
+
+        if (tot_occ >= 3) {
+            printf("T-Spin ");
+            if (num_rows_cleared == 0) {
+                printf("\n");
+            }
+            t_spin = 1;
+        }
+    }
+
+    // difficult moves are either t spins with > 0 clears or tetris's
+    if (t_spin || num_rows_cleared == 4) {
+        if (t->scorer.status & SCORER_LAST_CLEAR_WAS_HARD) {
+            printf("B2B ");
+            b2b = 1;
+        }
+        t->scorer.status |= SCORER_LAST_CLEAR_WAS_HARD;
+    }
+    else {
+        t->scorer.status &= ~SCORER_LAST_CLEAR_WAS_HARD;
+    }
+
+
+    if (num_rows_cleared > 0) {
+
+        // if any lines were cleared, we have a combo of at least 1
+        t->scorer.combo_len++;
+        if (t->scorer.combo_len >= 2) {
+            printf("Combo of length %d\n", t->scorer.combo_len);
+        }
+
+
+        int32_t pts;
+
+        assert(num_rows_cleared <= 4);
+        switch (num_rows_cleared) {
+            case 1:
+                printf("Single");
+                pts = t_spin ? (b2b ? 1200 : 800) : 100;
+                break;
+            case 2:
+                printf("Double");
+                pts = t_spin ? (b2b ? 1800 : 1200) : 300;
+                break;
+            case 3:
+                printf("Triple");
+                pts = t_spin ? (b2b ? 2400 : 1600) : 500;
+                break;
+            case 4:
+                printf("Tetris");
+                assert(!t_spin);
+                pts = b2b ? 1200 : 800;
+                break;
+        }
+
+        if (t->scorer.combo_len >= 2) {
+            pts += 50 * t->scorer.combo_len;
+        }
+
+        t->scorer.score += pts;
+
+        printf("\n");
+    }
+    else {
+        // if no lines were cleared, then we have to reset the combo count
+        t->scorer.combo_len = 0;
+
+        if (t_spin) {
+            // 400 points for a t-spin without any lines cleared
+            t->scorer.score += 400;
+        }
+    }
+}
+
+
 
 void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
         float screen_width, float screen_height) {
@@ -172,6 +277,8 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     _init_fp_data(&t->fp_data);
 
     _init_controller(&t->ctrl);
+
+    _init_scorer(&t->scorer);
     
     // note: do not need to initialize clear animator, as it is only accessed
     // when in clear animation state, and will be initialized when we enter
@@ -259,7 +366,7 @@ static void _remove_piece(tetris_t *t, piece_t piece) {
  */
 static int _piece_collides(tetris_t *t, piece_t piece) {
     define_each_piece_tile(p, piece);
-    
+
     uint8_t p1 = board_get_tile(&t->board, p_x1, p_y1);
     uint8_t p2 = board_get_tile(&t->board, p_x2, p_y2);
     uint8_t p3 = board_get_tile(&t->board, p_x3, p_y3);
@@ -455,6 +562,10 @@ static int _advance(tetris_t *t) {
             // piece was subsequently moved off the platform
             t->fp_data.falling_status &= ~HIT_GROUND_LAST_FRAME;
             t->fp_data.ground_hit_count = 0;
+
+            // unset last action was rotate flag in scorer
+            t->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
+
             // that is the completion of this move
             break;
         }
@@ -486,6 +597,8 @@ static void _piece_placed(tetris_t *t) {
 
     int32_t r;
 
+    int32_t num_rows_cleared = 0;
+
     // if we end up needing to start the clear animation, the start row will be
     // bot (snap the bottom down to the 4th to last row if it is any higher,
     // so that every row in the bitvector will correspond to a real row on the
@@ -496,10 +609,13 @@ static void _piece_placed(tetris_t *t) {
     for (r = bot; r < top; r++) {
         if (board_row_full(&t->board, r)) {
             canim_set_row_idx(&c_anim_tmp, r - anim_bot);
+            num_rows_cleared++;
         }
     }
 
-    if (canim_any_rows_set(&c_anim_tmp)) {
+    _scorer_count_move(t, num_rows_cleared, t->falling_piece.piece_idx);
+
+    if (num_rows_cleared > 0) {
         // if any rows were found to be clear, we have to do the clear animation!
         c_anim_tmp.l_col = 4;
         c_anim_tmp.r_col = 5;
@@ -512,7 +628,7 @@ static void _piece_placed(tetris_t *t) {
 /*
  * to be called whenever a piece has been successfully moved by player control
  */
-static void _control_moved_piece(tetris_t *t) {
+static void _control_moved_piece(tetris_t *t, int move_type) {
 
     // if the ground was hit last frame, then we unset the hit ground last frame
     // flag to give it another frame before it gets stuck (unless we have already
@@ -526,6 +642,14 @@ static void _control_moved_piece(tetris_t *t) {
         t->fp_data.ground_hit_count++;
     }
 
+    // update last action type in scorer
+    if (move_type == MOVE_ROTATE) {
+        t->scorer.status |= SCORER_LAST_ACTION_WAS_ROTATE;
+    }
+    else {
+        t->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
+    }
+
 }
 
 
@@ -535,31 +659,39 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     // due to one of the following move/rotate methods
     int res = 0;
 
+    // type of move (either MOVE_TRANSLATE or MOVE_ROTATE)
+    int type = 0;
+
     if (ev->action == GLFW_PRESS) {
         switch (ev->key) {
             case GLFW_KEY_LEFT:
                 res = _move_piece(t, -1, 0);
+                type = MOVE_TRANSLATE;
                 t->ctrl.keypress_flags |= LEFT_KEY;
                 break;
             case GLFW_KEY_RIGHT:
                 res = _move_piece(t, 1, 0);
+                type = MOVE_TRANSLATE;
                 t->ctrl.keypress_flags |= RIGHT_KEY;
                 break;
             case GLFW_KEY_UP:
                 res = _rotate_piece(t, ROTATE_CLOCKWISE);
+                type = MOVE_ROTATE;
                 break;
             case GLFW_KEY_DOWN:
                 t->ctrl.keypress_flags |= DOWN_KEY;
                 break;
             case GLFW_KEY_A:
                 res = _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
+                type = MOVE_ROTATE;
                 break;
             case GLFW_KEY_D:
                 res = _rotate_piece(t, ROTATE_CLOCKWISE);
+                type = MOVE_ROTATE;
                 break;
         }
     }
-    if (ev->action == GLFW_RELEASE) {
+    else if (ev->action == GLFW_RELEASE) {
         switch (ev->key) {
             case GLFW_KEY_LEFT:
                 t->ctrl.keypress_flags &= ~LEFT_KEY;
@@ -578,7 +710,8 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     // if a piece was successfully moved, then we need to register it in case
     // this has any affect on the falling piece data control
     if (res) {
-        _control_moved_piece(t);
+        assert(type != 0);
+        _control_moved_piece(t, type);
     }
 }
 
@@ -625,7 +758,9 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
     }
 
     if (res) {
-        _control_moved_piece(t);
+        // only translations can be repeated by holding down, so the only move
+        // that could have been executed here is a translation
+        _control_moved_piece(t, MOVE_TRANSLATE);
     }
 }
 

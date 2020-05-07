@@ -8,7 +8,7 @@
 
 #include <tetris.h>
 #include <frame.h>
-#include <font.h>
+#include <score.h>
 
 
 #define WIDTH 1024
@@ -19,8 +19,9 @@ int main(int argc, char *argv[]) {
     gl_context c;
     tetris_t t;
     frame_t f;
-    font_t font;
 
+    font_t font;
+    scoreboard sb;
 
 
     gl_init(&c, WIDTH, HEIGHT);
@@ -45,28 +46,24 @@ int main(int argc, char *argv[]) {
     frame_set_xscale(&f, w);
     frame_set_yscale(&f, 2.f);
 
+    scoreboard_init(&sb, &font, .5f, .45f, .5f, .15f);
 
-    float ti = 0;
     while (!gl_should_exit(&c)) {
         gl_clear(&c);
 
-        //tetris_step(&t);
+        tetris_step(&t);
 
-        //board_draw(&t.board);
-        //frame_draw(&f);
+        board_draw(&t.board);
+        frame_draw(&f);
 
-        font_set_color(&font, gen_color((int) (150 + 100.f * sin(ti / 50.f)),
-                                        (int) (100 + 50.f  * sin(ti / 70.f)),
-                                        (int) (200 + 55.f  * sin(ti / 80.f)), 255));
-        ti++;
-
-        font_render(&font, "Tetris 101 is on repeat for a"
-                " while since we are testing", -.2f, .5f, 1.2f, .1f);
+        scoreboard_set_score(&sb, t.scorer.score);
+        scoreboard_draw(&sb);
 
         gl_render(&c);
         glfwPollEvents();
     }
 
+    scoreboard_destroy(&sb);
     font_destroy(&font);
     frame_destroy(&f);
     tetris_destroy(&t);

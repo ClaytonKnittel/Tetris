@@ -3,9 +3,9 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <font.h>
 #include <util.h>
 #include <gl/color.h>
+#include <gl/font.h>
 
 
 // number of floats sent to GPU per vertex being drawn
@@ -13,6 +13,10 @@
 
 // number of vertices needed for each character drawn
 #define VERTS_PER_CHAR 6
+
+
+#define NORMAL_SPACING 0
+#define MONO_SPACING 1
 
 
 int font_init(font_t *f, const char * font_path, uint64_t font_height) {
@@ -120,14 +124,17 @@ int font_init(font_t *f, const char * font_path, uint64_t font_height) {
                     b[(g->h - row - 1) * g->w + col];
             }
         }
-
-        /*for (uint32_t row = 0; row < max_height; row++) {
-            __builtin_memcpy(&tex_buf[row * f->tex_width + f->glyphs[idx].x_off],
-                    b, f->glyphs[idx].w * sizeof(uint8_t));
-        }*/
     }
 
-    gl_load_program(&f->p, "main/res/font.vs", "main/res/font.fs");
+    // calculate max_digit_ax
+    for (char dig = '0'; dig <= '9'; dig++) {
+        FT_UInt glyph_idx = FT_Get_Char_Index(f->face, dig);
+        glyph *g = &f->glyphs[glyph_idx];
+
+        f->max_digit_ax = MAX(f->max_digit_ax, g->ax);
+    }
+
+    gl_load_program(&f->p, "glib/res/font.vs", "glib/res/font.fs");
     gl_use_program(&f->p);
 
     f->font_color_loc = gl_uniform_location(&f->p, "font_color");
@@ -188,8 +195,8 @@ void font_destroy(font_t *f) {
 }
 
 
-void font_render(font_t *f, const char * text, float x_pos, float y_pos,
-        float width, float line_height) {
+static void _font_render(font_t *f, const char * text, float x_pos, float y_pos,
+        float width, float line_height, int spacing) {
 
     if (text[0] == '\0') {
         // ignore call to draw nothing
@@ -233,10 +240,21 @@ void font_render(font_t *f, const char * text, float x_pos, float y_pos,
             FT_UInt glyph_idx = FT_Get_Char_Index(f->face, text[i]);
             glyph *g = &f->glyphs[glyph_idx];
 
-            float x1 = pen_x + (px_to_norm * g->bl);
+            if (glyph_idx == 0) {
+                fprintf(stderr, "Unknown character \"%c\"\n", text[i]);
+            }
+
+            float x1;
+            if (spacing == MONO_SPACING) {
+                x1 = pen_x + (px_to_norm * f->max_digit_ax / 64.f) -
+                    (px_to_norm * g->w) + (px_to_norm * g->bl);
+            }
+            else {
+                x1 = pen_x + (px_to_norm * g->bl);
+            }
             float x2 = x1 + (px_to_norm * g->w);
 
-            float y2 = pen_y - (px_to_norm * g->bt);
+            float y2 = pen_y + (px_to_norm * g->bt);
             float y1 = y2 - (px_to_norm * g->h);
 
             float tx1 = (float) g->x_off / (float) f->tex_width;
@@ -257,7 +275,12 @@ void font_render(font_t *f, const char * text, float x_pos, float y_pos,
                 continue;
             }
             else {
-                pen_x += (px_to_norm * g->ax) / 64.f;
+                if (spacing == MONO_SPACING) {
+                    pen_x += (px_to_norm * f->max_digit_ax) / 64.f;
+                }
+                else {
+                    pen_x += (px_to_norm * g->ax) / 64.f;
+                }
                 pen_y += (px_to_norm * g->ay) / 64.f;
             }
 
@@ -321,5 +344,16 @@ void font_render(font_t *f, const char * text, float x_pos, float y_pos,
     }
 
     glBindVertexArray(0);
+}
+
+
+void font_render(font_t *f, const char * text, float x_pos, float y_pos,
+        float width, float line_height) {
+    _font_render(f, text, x_pos, y_pos, width, line_height, NORMAL_SPACING);
+}
+
+void font_render_mono_num(font_t *f, const char * text, float x_pos, float y_pos,
+        float width, float line_height) {
+    _font_render(f, text, x_pos, y_pos, width, line_height, MONO_SPACING);
 }
 

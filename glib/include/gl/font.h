@@ -48,6 +48,9 @@ typedef struct font {
     uint32_t tex_width;
     uint32_t tex_height;
 
+    // maximum ax val for any digit (for monospace digit drawing)
+    int32_t max_digit_ax;
+
     // GL key for texture generated in init
     GLuint texture;
 
@@ -83,6 +86,13 @@ static void font_set_color(font_t *f, color_t color) {
  * in text box of fixed width and given line height (height of each character)
  */
 void font_render(font_t *f, const char * text, float x_pos, float y_pos,
+        float width, float line_height);
+
+/*
+ * same as font_render, but uses monospacing (uses line spacing of widest
+ * digit)
+ */
+void font_render_mono_num(font_t *f, const char * text, float x_pos, float y_pos,
         float width, float line_height);
 
 
