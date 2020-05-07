@@ -305,11 +305,11 @@ static uint32_t _fetch_next_piece_idx(tetris_t *t) {
         // if we just grabbed the last piece in a group of 7, move
         // the subsequent group of 7 down and generate a new group
         // 7 to follow it
-        memcpy(&t->piece_queue[0], &t->piece_queue[N_PIECES],
+        __builtin_memcpy(&t->piece_queue[0], &t->piece_queue[N_PIECES],
                 N_PIECES * sizeof(t->piece_queue[0]));
-    
+
         // generate next sequence and permute it
-        for (uint32_t i = 0; i < 2 * N_PIECES; i++) {
+        for (uint32_t i = N_PIECES; i < 2 * N_PIECES; i++) {
             t->piece_queue[i] = (i % N_PIECES) + 1;
         }
         permute(&t->piece_queue[N_PIECES], N_PIECES,

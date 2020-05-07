@@ -14,7 +14,7 @@ int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
 
     board_init(&u->board, b_w, b_h);
     board_set_pos(&u->board, x, y);
-    board_set_xscale(&u->board, h * b_w / b_h);
+    board_set_xscale(&u->board, (h * b_w) / b_h);
     board_set_yscale(&u->board, h);
 
     u->size = queue_size;

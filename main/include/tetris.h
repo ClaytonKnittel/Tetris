@@ -333,7 +333,7 @@ static int is_fast_falling(tetris_t *t) {
  * returns a pointer to the beginning of the up-next queue of pieces
  */
 static uint8_t* tetris_get_up_next(tetris_t *t) {
-    return t->piece_queue + t->queue_idx;
+    return &t->piece_queue[t->queue_idx];
 }
 
 

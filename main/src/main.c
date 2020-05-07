@@ -1,7 +1,8 @@
 
 #include <stdio.h>
-#include <math.h>
 #include <unistd.h>
+
+#include <math/random.h>
 
 #include <gl/gl.h>
 #include <gl/shader.h>
@@ -24,6 +25,8 @@ int main(int argc, char *argv[]) {
     font_t font;
     scoreboard sb;
     up_next_t u;
+
+    seed_rand(time(NULL));
 
 
     gl_init(&c, WIDTH, HEIGHT);

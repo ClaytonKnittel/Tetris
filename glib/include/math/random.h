@@ -10,7 +10,7 @@ extern __thread uint32_t __seed;
 
 
 
-static void srand(uint64_t init_seed) {
+static void seed_rand(uint64_t init_seed) {
     __seed = init_seed;
 }
 
@@ -29,7 +29,7 @@ static uint32_t __rand_hash(uint32_t seed) {
 /*
  * generate random number (32 bit)
  */
-static uint32_t rand() {
+static uint32_t gen_rand() {
     uint32_t res = __rand_hash(__seed);
     __seed = res;
     return res;
