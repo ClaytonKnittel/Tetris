@@ -9,6 +9,7 @@
 #include <tetris.h>
 #include <frame.h>
 #include <score.h>
+#include <up_next.h>
 
 
 #define WIDTH 1024
@@ -22,6 +23,7 @@ int main(int argc, char *argv[]) {
 
     font_t font;
     scoreboard sb;
+    up_next_t u;
 
 
     gl_init(&c, WIDTH, HEIGHT);
@@ -48,13 +50,17 @@ int main(int argc, char *argv[]) {
 
     scoreboard_init(&sb, &font, .5f, .45f, .5f, .15f);
 
+    up_next_init(&u, 3, .55f, -.7f, .8f);
+
     while (!gl_should_exit(&c)) {
         gl_clear(&c);
 
         tetris_step(&t);
+        up_next_set(&u, tetris_get_up_next(&t));
 
         board_draw(&t.board);
         frame_draw(&f);
+        up_next_draw(&u);
 
         scoreboard_set_score(&sb, t.scorer.score);
         scoreboard_draw(&sb);
@@ -63,6 +69,7 @@ int main(int argc, char *argv[]) {
         glfwPollEvents();
     }
 
+    up_next_destroy(&u);
     scoreboard_destroy(&sb);
     font_destroy(&font);
     frame_destroy(&f);

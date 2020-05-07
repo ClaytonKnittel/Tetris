@@ -1,5 +1,6 @@
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <gl/shader.h>
 #include <gl/color.h>
@@ -110,6 +111,145 @@ void board_destroy(board_t *b) {
     free(b->color_idxs);
     gl_unload_program(&b->p);
 }
+
+
+
+void board_clear(board_t *b) {
+    memset(b->color_idxs, 0, color_idxs_arr_len(b->width * b->height) *
+            sizeof(uint32_t));
+    b->tiles_changed = 1;
+}
+
+
+/*
+ * returns 0 if the tile could not be set, 1 otherwise
+ */
+int board_set_tile(board_t *b, int32_t x, int32_t y,
+        uint32_t tile_color) {
+    // by comparing as unsigned, take care of negative case
+    if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
+        return 0;
+    }
+
+    b->tiles_changed = 1;
+
+    uint32_t idx = y * b->width + x;
+    uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
+    uint32_t el_idx = idx - (color_idx * COLOR_IDXS_PER_INT);
+
+    uint32_t mask = COLOR_IDX_MASK << (el_idx * LOG_N_STATES);
+    tile_color <<= el_idx * LOG_N_STATES;
+    b->color_idxs[color_idx] = (b->color_idxs[color_idx] & ~mask) |
+        tile_color;
+    return 1;
+}
+
+uint8_t board_get_tile(board_t *b, int32_t x, int32_t y) {
+    // by comparing as unsigned, take care of negative case
+    if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
+        // if this tile is above the top of the screen, we count it as empty,
+        // otherwise, there is an imaginary border just outside the screen that
+        // we say the piece is colliding with (return any nonzero value less
+        // than 8)
+        return (((uint32_t) x) < b->width && y >= 0) ? EMPTY : 1;
+    }
+
+    uint32_t idx = y * b->width + x;
+    uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
+    uint32_t el_idx = idx - (color_idx * COLOR_IDXS_PER_INT);
+
+    uint32_t set = b->color_idxs[color_idx] >> (el_idx * LOG_N_STATES);
+    return set & COLOR_IDX_MASK;
+}
+
+
+/*
+ * retusn 1 if the given row is full on the board (all nonzero entries), else 0
+ */
+int board_row_full(board_t *b, int32_t row) {
+    for (int32_t col = 0; col < b->width; col++) {
+        if (board_get_tile(b, col, row) == EMPTY) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
+ * copies the entirety of src_row into dst_row
+ * TODO optimize
+ */
+void board_copy_row(board_t *b, int32_t dst_row, int32_t src_row) {
+    for (int32_t col = 0; col < b->width; col++) {
+        board_set_tile(b, col, dst_row, board_get_tile(b, col, src_row));
+    }
+}
+
+void board_clear_row(board_t *b, int32_t row) {
+    for (int32_t col = 0; col < b->width; col++) {
+        board_set_tile(b, col, row, EMPTY);
+    }
+}
+
+
+
+
+/*
+ * places a piece on the board by setting each of the tiles it occupies to its
+ * color
+ *
+ * returns 1 if any piece could be placed on the board, otherwise 0
+ */
+int board_place_piece(board_t *b, piece_t piece) {
+    define_each_piece_tile(p, piece);
+    uint32_t tile_color = piece.piece_idx;
+
+    int piece_placed = 0;
+
+    piece_placed |= board_set_tile(b, p_x1, p_y1, tile_color);
+    piece_placed |= board_set_tile(b, p_x2, p_y2, tile_color);
+    piece_placed |= board_set_tile(b, p_x3, p_y3, tile_color);
+    piece_placed |= board_set_tile(b, p_x4, p_y4, tile_color);
+
+    return piece_placed;
+}
+
+
+/*
+ * removes a piece on the board by setting each of the tiles it occupies back
+ * to EMPTY
+ */
+void board_remove_piece(board_t *b, piece_t piece) {
+    define_each_piece_tile(p, piece);
+
+    board_set_tile(b, p_x1, p_y1, EMPTY);
+    board_set_tile(b, p_x2, p_y2, EMPTY);
+    board_set_tile(b, p_x3, p_y3, EMPTY);
+    board_set_tile(b, p_x4, p_y4, EMPTY);
+}
+
+
+
+/*
+ * checks to see if the given piece will be colliding with any pieces that
+ * are already on the given board
+ */
+int board_piece_collides(board_t *b, piece_t piece) {
+    define_each_piece_tile(p, piece);
+
+    uint8_t p1 = board_get_tile(b, p_x1, p_y1);
+    uint8_t p2 = board_get_tile(b, p_x2, p_y2);
+    uint8_t p3 = board_get_tile(b, p_x3, p_y3);
+    uint8_t p4 = board_get_tile(b, p_x4, p_y4);
+
+    // if all squares are empty, then all four tiles or-ed together will be
+    // 0, otherwise, if any tile isn't empty, we will get a nonzero result
+    return ((p1 | p2) | (p3 | p4)) != 0;
+}
+
+
+
 
 
 void board_draw(board_t *b) {

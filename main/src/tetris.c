@@ -324,60 +324,6 @@ static uint32_t _fetch_next_piece_idx(tetris_t *t) {
 
 
 
-/*
- * places a piece on the board by setting each of the tiles it occupies to its
- * color
- *
- * returns 1 if any piece could be placed on the board, otherwise 0
- */
-static int _place_piece(tetris_t *t, piece_t piece) {
-    define_each_piece_tile(p, piece);
-    uint32_t tile_color = piece.piece_idx;
-
-    int piece_placed = 0;
-
-    piece_placed |= board_set_tile(&t->board, p_x1, p_y1, tile_color);
-    piece_placed |= board_set_tile(&t->board, p_x2, p_y2, tile_color);
-    piece_placed |= board_set_tile(&t->board, p_x3, p_y3, tile_color);
-    piece_placed |= board_set_tile(&t->board, p_x4, p_y4, tile_color);
-
-    return piece_placed;
-}
-
-
-/*
- * removes a piece on the board by setting each of the tiles it occupies back
- * to EMPTY
- */
-static void _remove_piece(tetris_t *t, piece_t piece) {
-    define_each_piece_tile(p, piece);
-
-    board_set_tile(&t->board, p_x1, p_y1, EMPTY);
-    board_set_tile(&t->board, p_x2, p_y2, EMPTY);
-    board_set_tile(&t->board, p_x3, p_y3, EMPTY);
-    board_set_tile(&t->board, p_x4, p_y4, EMPTY);
-}
-
-
-
-/*
- * checks to see if the given piece will be colliding with any pieces that
- * are already on the given board
- */
-static int _piece_collides(tetris_t *t, piece_t piece) {
-    define_each_piece_tile(p, piece);
-
-    uint8_t p1 = board_get_tile(&t->board, p_x1, p_y1);
-    uint8_t p2 = board_get_tile(&t->board, p_x2, p_y2);
-    uint8_t p3 = board_get_tile(&t->board, p_x3, p_y3);
-    uint8_t p4 = board_get_tile(&t->board, p_x4, p_y4);
-
-    // if all squares are empty, then all four tiles or-ed together will be
-    // 0, otherwise, if any tile isn't empty, we will get a nonzero result
-    return ((p1 | p2) | (p3 | p4)) != 0;
-}
-
-
 
 
 
@@ -393,21 +339,21 @@ static int _move_piece(tetris_t *t, int dx, int dy) {
     falling = t->falling_piece;
 
     // first, remove the piece from the board where it is
-    _remove_piece(t, falling);
+    board_remove_piece(&t->board, falling);
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
     piece_move(&new_falling, dx, dy);
 
     // check to see if there would be any collisions here
-    if (_piece_collides(t, new_falling)) {
+    if (board_piece_collides(&t->board, new_falling)) {
         // then the piece cannot move, so put it back
-        _place_piece(t, falling);
+        board_place_piece(&t->board, falling);
         return 0;
     }
     else {
         // otherwise, the piece can now be moved down into the new location
-        _place_piece(t, new_falling);
+        board_place_piece(&t->board, new_falling);
         t->falling_piece = new_falling;
         return 1;
     }
@@ -432,7 +378,7 @@ static int _rotate_piece(tetris_t *t, int rotation) {
     falling = t->falling_piece;
 
     // first, remove the piece from the board where it is
-    _remove_piece(t, falling);
+    board_remove_piece(&t->board, falling);
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
@@ -442,9 +388,9 @@ static int _rotate_piece(tetris_t *t, int rotation) {
         // this piece cannot be rotated, so we don't loop
 
         // check to see if there would be any collisions here
-        if (!_piece_collides(t, new_falling)) {
+        if (!board_piece_collides(&t->board, new_falling)) {
             // the piece can now be moved down into the new location
-            _place_piece(t, new_falling);
+            board_place_piece(&t->board, new_falling);
             t->falling_piece = new_falling;
             return 1;
         }
@@ -456,9 +402,9 @@ static int _rotate_piece(tetris_t *t, int rotation) {
             piece_move(&new_falling, dx, dy);
 
             // check to see if there would be any collisions here
-            if (!_piece_collides(t, new_falling)) {
+            if (!board_piece_collides(&t->board, new_falling)) {
                 // the piece can now be moved down into the new location
-                _place_piece(t, new_falling);
+                board_place_piece(&t->board, new_falling);
                 t->falling_piece = new_falling;
                 return 1;
             }
@@ -472,7 +418,7 @@ static int _rotate_piece(tetris_t *t, int rotation) {
 
     // there were no suitable locations for the piece, so put it back where it
     // was
-    _place_piece(t, falling);
+    board_place_piece(&t->board, falling);
     return 0;
 }
 
@@ -509,17 +455,17 @@ static int _advance(tetris_t *t) {
         // move the piece down
 
         // first, remove the piece from the board where it is
-        _remove_piece(t, falling);
+        board_remove_piece(&t->board, falling);
 
         // and now advance the piece downward
         piece_t new_falling = falling;
         piece_move(&new_falling, 0, -1);
 
         // check to see if there would be any collisions here
-        if (_piece_collides(t, new_falling)) {
+        if (board_piece_collides(&t->board, new_falling)) {
             // then the piece cannot move down, it is now stuck where it was.
             // First, put the old piece back, then unset the falling piece
-            int placed = _place_piece(t, falling);
+            int placed = board_place_piece(&t->board, falling);
 
             if (t->fp_data.falling_status & HIT_GROUND_LAST_FRAME) {
                 // if the piece spend two successive frames hitting the ground,
@@ -555,7 +501,7 @@ static int _advance(tetris_t *t) {
         }
         else {
             // otherwise, the piece can now be moved down into the new location
-            _place_piece(t, new_falling);
+            board_place_piece(&t->board, new_falling);
             t->falling_piece = new_falling;
 
             // unset hit ground last frame flag, in case it was set and the

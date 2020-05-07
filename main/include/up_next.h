@@ -7,17 +7,25 @@
 
 typedef struct up_next {
     board_t board;
-
+    uint32_t size;
 } up_next_t;
 
 
 
-int up_next_init(&up_next_t *u, uint32_t queue_size, float x, float y, float w,
+/*
+ * width of up next board is calculated based on height and queue size
+ */
+int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
         float h);
 
 
-void up_next_destroy(&up_next_t *u);
+void up_next_destroy(up_next_t *u);
 
+
+void up_next_set(up_next_t *u, uint8_t *pieces);
+
+
+void up_next_draw(up_next_t *u);
 
 
 

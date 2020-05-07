@@ -59,76 +59,60 @@ static void board_set_yscale(board_t *b, float yscale) {
 }
 
 
+
+void board_clear(board_t *b);
+
+
 /*
  * returns 0 if the tile could not be set, 1 otherwise
  */
-static int board_set_tile(board_t *b, int32_t x, int32_t y,
-        uint32_t tile_color) {
-    // by comparing as unsigned, take care of negative case
-    if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
-        return 0;
-    }
+int board_set_tile(board_t *b, int32_t x, int32_t y,
+        uint32_t tile_color);
 
-    b->tiles_changed = 1;
 
-    uint32_t idx = y * b->width + x;
-    uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
-    uint32_t el_idx = idx - (color_idx * COLOR_IDXS_PER_INT);
-
-    uint32_t mask = COLOR_IDX_MASK << (el_idx * LOG_N_STATES);
-    tile_color <<= el_idx * LOG_N_STATES;
-    b->color_idxs[color_idx] = (b->color_idxs[color_idx] & ~mask) |
-        tile_color;
-    return 1;
-}
-
-static uint8_t board_get_tile(board_t *b, int32_t x, int32_t y) {
-    // by comparing as unsigned, take care of negative case
-    if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
-        // if this tile is above the top of the screen, we count it as empty,
-        // otherwise, there is an imaginary border just outside the screen that
-        // we say the piece is colliding with (return any nonzero value less
-        // than 8)
-        return (((uint32_t) x) < b->width && y >= 0) ? EMPTY : 1;
-    }
-
-    uint32_t idx = y * b->width + x;
-    uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
-    uint32_t el_idx = idx - (color_idx * COLOR_IDXS_PER_INT);
-
-    uint32_t set = b->color_idxs[color_idx] >> (el_idx * LOG_N_STATES);
-    return set & COLOR_IDX_MASK;
-}
+uint8_t board_get_tile(board_t *b, int32_t x, int32_t y);
 
 
 /*
  * retusn 1 if the given row is full on the board (all nonzero entries), else 0
  */
-static int board_row_full(board_t *b, int32_t row) {
-    for (int32_t col = 0; col < b->width; col++) {
-        if (board_get_tile(b, col, row) == EMPTY) {
-            return 0;
-        }
-    }
-    return 1;
-}
+int board_row_full(board_t *b, int32_t row);
+
 
 
 /*
  * copies the entirety of src_row into dst_row
  * TODO optimize
  */
-static void board_copy_row(board_t *b, int32_t dst_row, int32_t src_row) {
-    for (int32_t col = 0; col < b->width; col++) {
-        board_set_tile(b, col, dst_row, board_get_tile(b, col, src_row));
-    }
-}
+void board_copy_row(board_t *b, int32_t dst_row, int32_t src_row);
 
-static void board_clear_row(board_t *b, int32_t row) {
-    for (int32_t col = 0; col < b->width; col++) {
-        board_set_tile(b, col, row, EMPTY);
-    }
-}
+
+void board_clear_row(board_t *b, int32_t row);
+
+
+
+
+/*
+ * places a piece on the board by setting each of the tiles it occupies to its
+ * color
+ *
+ * returns 1 if any piece could be placed on the board, otherwise 0
+ */
+int board_place_piece(board_t *b, piece_t piece);
+
+
+/*
+ * removes a piece on the board by setting each of the tiles it occupies back
+ * to EMPTY
+ */
+void board_remove_piece(board_t *b, piece_t piece);
+
+
+/*
+ * checks to see if the given piece will be colliding with any pieces that
+ * are already on the given board
+ */
+int board_piece_collides(board_t *b, piece_t piece);
 
 
 void board_draw(board_t *b);
