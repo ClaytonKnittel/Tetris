@@ -132,7 +132,7 @@ typedef struct clear_animator {
      * between 0-15), and the next 4 bits as a bitvector for which of the for
      * following lines (starting from the bottom) are being cleared
      *
-     *     7       6       5       4     3    -    1
+     *     7       6       5       4     3    -    0
      * +-------+-------+-------+-------+-------------+
      * | row+3 | row+2 | row+1 |  row  |  start row  |
      * +-------+-------+-------+-------+-------------+
@@ -250,6 +250,27 @@ typedef struct scorer {
 
 
 
+// flag set when there is a piece that was evicted from the piece hold (needs
+// to be next falling piece)
+#define PIECE_HOLD_READY 0x1
+
+// set after a piece swap occurs, and to be unset after the currently falling
+// piece is placed (so you can't swap more than once on a single tile)
+#define PIECE_HOLD_STALE 0x2
+
+typedef struct piece_hold {
+    // current piece being held
+    uint8_t piece_idx;
+
+    // piece to be used as next falling piece (when a transfer occurs, evicting
+    // the current held piece)
+    uint8_t next_falling_piece;
+
+    uint8_t flags;
+} piece_hold;
+
+
+
 typedef struct tetris {
     // piece currently being controlled by player
     piece_t falling_piece;
@@ -268,6 +289,12 @@ typedef struct tetris {
      * time-since-last-drop, etc.
      */
     falling_piece_data fp_data;
+
+    /*
+     * piece hold is temporary storage for a falling piece the player can swap
+     * out for the current falling piece at a later time
+     */
+    piece_hold hold;
 
     /* status of the game, can be one of
      *  PLAY: normal running state

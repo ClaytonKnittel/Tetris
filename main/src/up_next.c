@@ -4,20 +4,40 @@
 #include <piece.h>
 
 
+extern const float aspect_ratio;
+
+// percentage of window for queue (remaining percentage is for text
+#define QUEUE_PERC .87f
+#define PADDING .05f
+#define TEXT_PERC (1.f - QUEUE_PERC - PADDING)
+
+
 int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
-        float h) {
+        float w, float h, font_t *font) {
 
     assert(queue_size > 0);
 
     uint32_t b_w = PIECE_BB_W;
     uint32_t b_h = PIECE_BB_H * queue_size;
 
+    float board_h = QUEUE_PERC * h;
+    float board_w = aspect_ratio * (board_h * b_w) / b_h;
+
+    float board_x = x + (w - board_w) / 2;
+    float board_y = y;
+
     board_init(&u->board, b_w, b_h);
-    board_set_pos(&u->board, x, y);
-    board_set_xscale(&u->board, (h * b_w) / b_h);
-    board_set_yscale(&u->board, h);
+    board_set_pos(&u->board, board_x, board_y);
+    board_set_xscale(&u->board, board_w);
+    board_set_yscale(&u->board, board_h);
 
     u->size = queue_size;
+    u->font = font;
+
+    u->text_x = x;
+    u->text_y = y + board_h + PADDING;
+    u->text_w = w;
+    u->text_h = TEXT_PERC * h;
 
     return 0;
 }
@@ -46,6 +66,8 @@ void up_next_set(up_next_t *u, uint8_t *pieces) {
 
 void up_next_draw(up_next_t *u) {
     board_draw(&u->board);
+
+    font_render(u->font, "Next", u->text_x, u->text_y, u->text_w, u->text_h);
 }
 
 

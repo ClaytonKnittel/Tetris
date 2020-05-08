@@ -253,6 +253,51 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
 
 
 
+
+static void _init_piece_hold(piece_hold *p) {
+    __builtin_memset(p, 0, sizeof(piece_hold));
+}
+
+
+/*
+ * performs hold action, which takes the currently falling piece and places it
+ * in the hold slot. If there was already a piece in the hold slot, it becomes
+ * the next falling piece and the piece queue does not move. Otherwise, if
+ * the hold slot was empty, the next piece is immediately chosen off the queue
+ */
+static void _hold_piece(tetris_t *t) {
+
+    uint8_t held_piece;
+
+    if (t->hold.flags & PIECE_HOLD_STALE) {
+        // if the hold is stale (a hold operation already happened after the
+        // last placement) then ignore the request
+        return;
+    }
+    
+    held_piece = t->hold.piece_idx;
+
+    t->hold.piece_idx = t->falling_piece.piece_idx;
+
+    // take the falling piece off the board
+    board_remove_piece(&t->board, t->falling_piece);
+
+    // unset falling piece so that a new one is chosen on next major time step
+    t->falling_piece.piece_idx = EMPTY;
+
+    // set the stale flag so this operation can't be performed again until a
+    // piece is placed
+    t->hold.flags |= PIECE_HOLD_STALE;
+
+    // set the ready flag if the prior held piece was not EMPTY
+    if (held_piece != EMPTY) {
+        t->hold.flags |= PIECE_HOLD_READY;
+        t->hold.next_falling_piece = held_piece;
+    }
+}
+
+
+
 void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
         float screen_width, float screen_height) {
 
@@ -279,6 +324,8 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     _init_controller(&t->ctrl);
 
     _init_scorer(&t->scorer);
+
+    _init_piece_hold(&t->hold);
     
     // note: do not need to initialize clear animator, as it is only accessed
     // when in clear animation state, and will be initialized when we enter
@@ -298,26 +345,38 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
 
 
 static uint32_t _fetch_next_piece_idx(tetris_t *t) {
-    uint32_t next = t->piece_queue[t->queue_idx];
-    t->queue_idx++;
+    uint32_t next;
+    
+    // first check if there is a piece evicted from the piece hold
+    if (t->hold.flags & PIECE_HOLD_READY) {
+        // if there was an evicted piece, make that the next falling piece
+        // and then clear the hold queue
+        next = t->hold.next_falling_piece;
+        t->hold.flags &= ~PIECE_HOLD_READY;
+    }
+    else {
+        // otherwise, take the next piece from the queue
+        next = t->piece_queue[t->queue_idx];
+        t->queue_idx++;
 
-    if (t->queue_idx == N_PIECES) {
-        // if we just grabbed the last piece in a group of 7, move
-        // the subsequent group of 7 down and generate a new group
-        // 7 to follow it
-        __builtin_memcpy(&t->piece_queue[0], &t->piece_queue[N_PIECES],
-                N_PIECES * sizeof(t->piece_queue[0]));
+        if (t->queue_idx == N_PIECES) {
+            // if we just grabbed the last piece in a group of 7, move
+            // the subsequent group of 7 down and generate a new group
+            // 7 to follow it
+            __builtin_memcpy(&t->piece_queue[0], &t->piece_queue[N_PIECES],
+                    N_PIECES * sizeof(t->piece_queue[0]));
 
-        // generate next sequence and permute it
-        for (uint32_t i = N_PIECES; i < 2 * N_PIECES; i++) {
-            t->piece_queue[i] = (i % N_PIECES) + 1;
+            // generate next sequence and permute it
+            for (uint32_t i = N_PIECES; i < 2 * N_PIECES; i++) {
+                t->piece_queue[i] = (i % N_PIECES) + 1;
+            }
+            permute(&t->piece_queue[N_PIECES], N_PIECES,
+                    sizeof(t->piece_queue[0]));
+
+            // reset queue index to reflect where the pieces moved
+            t->queue_idx = 0;
+
         }
-        permute(&t->piece_queue[N_PIECES], N_PIECES,
-                sizeof(t->piece_queue[0]));
-
-        // reset queue index to reflect where the pieces moved
-        t->queue_idx = 0;
-
     }
     return next;
 }
@@ -568,6 +627,10 @@ static void _piece_placed(tetris_t *t) {
         t->c_anim = c_anim_tmp;
         t->state = CLEAR_ANIMATION;
     }
+
+
+    // unset the stale flag in the piece hold struct, since a piece has been placed
+    t->hold.flags &= ~PIECE_HOLD_STALE;
 }
 
 
@@ -634,6 +697,9 @@ static void _handle_event(tetris_t *t, key_event *ev) {
             case GLFW_KEY_D:
                 res = _rotate_piece(t, ROTATE_CLOCKWISE);
                 type = MOVE_ROTATE;
+                break;
+            case GLFW_KEY_LEFT_SHIFT:
+                _hold_piece(t);
                 break;
         }
     }

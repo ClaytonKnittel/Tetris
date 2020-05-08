@@ -17,6 +17,9 @@
 #define HEIGHT 780
 
 
+const float aspect_ratio = ((float) HEIGHT) / ((float) WIDTH);
+
+
 int main(int argc, char *argv[]) {
     gl_context c;
     tetris_t t;
@@ -38,8 +41,8 @@ int main(int argc, char *argv[]) {
     gl_set_bg_color(bg);
 
 
-    float w = 2.f * ((float) HEIGHT) / ((float) WIDTH) *
-        ((float) TETRIS_WIDTH) / ((float) TETRIS_HEIGHT);
+    float w = 2.f * aspect_ratio * ((float) TETRIS_WIDTH) /
+        ((float) TETRIS_HEIGHT);
     vec2 pos = {
         .x = -w / 2.f,
         .y = -1.f
@@ -53,7 +56,7 @@ int main(int argc, char *argv[]) {
 
     scoreboard_init(&sb, &font, .5f, .45f, .5f, .15f);
 
-    up_next_init(&u, 3, .55f, -.7f, .8f);
+    up_next_init(&u, 3, .55f, -.8f, .28f, .9f, &font);
 
     while (!gl_should_exit(&c)) {
         gl_clear(&c);
