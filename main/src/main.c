@@ -9,6 +9,7 @@
 
 #include <tetris.h>
 #include <frame.h>
+#include <hold.h>
 #include <score.h>
 #include <up_next.h>
 
@@ -28,6 +29,7 @@ int main(int argc, char *argv[]) {
     font_t font;
     scoreboard sb;
     up_next_t u;
+    hold_t h;
 
     seed_rand(time(NULL));
 
@@ -58,15 +60,19 @@ int main(int argc, char *argv[]) {
 
     up_next_init(&u, 3, .55f, -.8f, .28f, .9f, &font);
 
+    hold_init(&h, -.8f, .45f, .28f, .5f, &font);
+
     while (!gl_should_exit(&c)) {
         gl_clear(&c);
 
         tetris_step(&t);
         up_next_set(&u, tetris_get_up_next(&t));
+        hold_set(&h, t.hold.piece_idx);
 
         board_draw(&t.board);
         frame_draw(&f);
         up_next_draw(&u);
+        hold_draw(&h);
 
         scoreboard_set_score(&sb, t.scorer.score);
         scoreboard_draw(&sb);
@@ -75,6 +81,7 @@ int main(int argc, char *argv[]) {
         glfwPollEvents();
     }
 
+    hold_destroy(&h);
     up_next_destroy(&u);
     scoreboard_destroy(&sb);
     font_destroy(&font);

@@ -6,7 +6,7 @@
 
 extern const float aspect_ratio;
 
-// percentage of window for queue (remaining percentage is for text
+// percentage of window for queue (remaining percentage is for text)
 #define QUEUE_PERC .87f
 #define PADDING .05f
 #define TEXT_PERC (1.f - QUEUE_PERC - PADDING)
@@ -35,7 +35,7 @@ int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
     u->font = font;
 
     u->text_x = x;
-    u->text_y = y + board_h + PADDING;
+    u->text_y = y + board_h + (PADDING * h);
     u->text_w = w;
     u->text_h = TEXT_PERC * h;
 
