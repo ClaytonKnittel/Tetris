@@ -71,16 +71,17 @@ typedef struct falling_piece_data {
     uint8_t ground_hit_count;
 
     /*
-     * tracks how many game ticks it has been since the miniimum y-coordinate
+     * tracks how many game ticks it has been since the minimum y-coordinate
      * of the falling piece has changed. If this is above a certain value, then
      * we do not allow ground hit count or hit ground last frame to prevent the
-     * piece from sticking
+     * piece from sticking, nor do we allow wall kicks
      */
     uint8_t min_h_inc_time;
     // min y-value this piece has ever been at
     int8_t min_h;
 
 } falling_piece_data;
+
 
 
 

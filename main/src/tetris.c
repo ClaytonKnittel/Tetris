@@ -49,6 +49,16 @@ static void _reset_fp_data(falling_piece_data *f) {
 }
 
 
+/*
+ * returns 1 if controls are locked (no wall kicking, immediate sticking),
+ * otherwise 0
+ */
+static int _lock_controls(tetris_t *t) {
+    return t->fp_data.min_h_inc_time >= MAX_MIN_H_INC_TIME ||
+           t->fp_data.ground_hit_count >= MAX_GROUND_HIT_COUNT;
+}
+
+
 
 static void _init_controller(controller *ctrl) {
     __builtin_memset(ctrl, 0, sizeof(controller));
@@ -443,8 +453,10 @@ static int _rotate_piece(tetris_t *t, int rotation) {
     new_falling = falling;
     piece_rotate(&new_falling, rotation);
 
-    if (falling.piece_idx == PIECE_O) {
-        // this piece cannot be rotated, so we don't loop
+    if (falling.piece_idx == PIECE_O || _lock_controls(t)) {
+        // either this piece cannot be rotated, so we don't loop, or the
+        // controls are locked (to prevent spamming spin), so we don't allow
+        // wall kicks
 
         // check to see if there would be any collisions here
         if (!board_piece_collides(&t->board, new_falling)) {
@@ -644,8 +656,7 @@ static void _control_moved_piece(tetris_t *t, int move_type) {
     // exceeded the maximum number of times we are allowed to do this or the
     // piece has not decreased the minimum global y value in sufficient time)
     if ((t->fp_data.falling_status & HIT_GROUND_LAST_FRAME) &&
-            t->fp_data.ground_hit_count < MAX_GROUND_HIT_COUNT &&
-            t->fp_data.min_h_inc_time < MAX_MIN_H_INC_TIME) {
+            !_lock_controls(t)) {
 
         t->fp_data.falling_status &= ~HIT_GROUND_LAST_FRAME;
         t->fp_data.ground_hit_count++;
@@ -806,10 +817,11 @@ void tetris_step(tetris_t *t) {
                     t->fp_data.min_h_inc_time = 0;
                 }
                 else {
-                    t->fp_data.min_h_inc_time++;
+                    t->fp_data.min_h_inc_time =
+                        MIN(t->fp_data.min_h_inc_time + 1, MAX_MIN_H_INC_TIME);
                 }
             }
-            else if (_is_minor_time_step(t)) {
+            if (_is_minor_time_step(t)) {
                 _handle_ctrl_callbacks(t);
 
             }
