@@ -31,7 +31,9 @@ int main(int argc, char *argv[]) {
     up_next_t u;
     hold_t h;
 
-    seed_rand(time(NULL));
+    uint64_t stan = time(NULL);
+    seed_rand(stan);
+    printf("srand: %llu\n", stan);
 
 
     gl_init(&c, WIDTH, HEIGHT);
@@ -55,6 +57,19 @@ int main(int argc, char *argv[]) {
     frame_set_pos(&f, -w / 2.f, -1.f);
     frame_set_xscale(&f, w);
     frame_set_yscale(&f, 2.f);
+
+    for (int r = 0; r < 5; r++) {
+        for (int c = 0; c < 10; c++) {
+            if (c != 5)
+                board_set_tile(&t.board, c, r, PIECE_L);
+        }
+    }
+
+    for (int r = 5; r < 13; r++) {
+        for (int c = 0; c < 9; c++) {
+            board_set_tile(&t.board, c, r, PIECE_L);
+        }
+    }
 
     scoreboard_init(&sb, &font, .5f, .45f, .5f, .15f);
 

@@ -42,7 +42,8 @@
 
 
 // key flags
-#define DOWN_KEY 0x1
+#define CTRL_ACTIVE 0x1
+#define DOWN_KEY 0x2
 #define LEFT_KEY 0x4
 #define RIGHT_KEY 0x8
 
@@ -96,13 +97,22 @@ typedef struct controller {
 
     /*
      * bitvector of status flags that apply to key presses. Possible values are
-     *  DOWN_KEY:  set when the down key is pressed
-     *  LEFT_KEY:  set when the left key is pressed
-     *  RIGHT_KEY: set when the right key is pressed
+     *  CTRL_ACTIVE: set when the controller is responsive to input (to be
+     *          unset when there is no falling piece)
+     *  DOWN_KEY:    set when the down key is pressed
+     *  LEFT_KEY:    set when the left key is pressed
+     *  RIGHT_KEY:   set when the right key is pressed
      */
     uint8_t keypress_flags;
 
 } controller;
+
+
+#define ctrl_is_active(ctrl) \
+    ((ctrl)->keypress_flags & CTRL_ACTIVE)
+
+#define ctrl_set_active(ctrl) \
+    (ctrl)->keypress_flags |= CTRL_ACTIVE
 
 
 #define is_key_pressed(tet, key) \
@@ -111,6 +121,16 @@ typedef struct controller {
 
 #define is_only_key_pressed(tet, key) \
     ((tet)->ctrl.keypress_flags == (key))
+
+
+/*
+ * resets the controller state back to the default settings (inactive, no keys
+ * pressed)
+ */
+static void ctrl_reset(controller *c) {
+    __builtin_memset(c, 0, sizeof(controller));
+}
+
 
 
 /*

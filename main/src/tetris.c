@@ -5,6 +5,15 @@
 #include <util.h>
 
 #include <tetris.h>
+#include <tutil.h>
+
+
+
+
+// forward declarations
+static void _get_next_falling_piece(tetris_t *t);
+static void _switch_state(tetris_t *t, int state);
+static void _piece_placed(tetris_t *t);
 
 
 
@@ -61,7 +70,7 @@ static int _lock_controls(tetris_t *t) {
 
 
 static void _init_controller(controller *ctrl) {
-    __builtin_memset(ctrl, 0, sizeof(controller));
+    ctrl_reset(ctrl);
 }
 
 
@@ -153,7 +162,7 @@ static void _finish_clear_animation(tetris_t *t) {
     }
 
     // now may resume the game
-    t->state = PLAY;
+    _switch_state(t, PLAY);
 }
 
 
@@ -341,7 +350,7 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     // when in clear animation state, and will be initialized when we enter
     // that state
 
-    t->state = PLAY;
+    _switch_state(t, PLAY);
 
     key_event_queue_init(&t->kq);
     _init_key_listeners(t, context);
@@ -352,6 +361,44 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     t->minor_tick_count = 4;
 
 }
+
+
+
+/*
+ * switches the tetris game state to the given state, performing any necessary
+ * state switching overhead
+ */
+static void _switch_state(tetris_t *t, int state) {
+
+    t->state = state;
+
+    switch (state) {
+        case PLAY:
+            // re-activate the controller
+            ctrl_set_active(&t->ctrl);
+
+            // need to fetch next falling piece and initialize it at the top,
+            // as there must always be a falling piece while the controller is
+            // active
+            _get_next_falling_piece(t);
+
+            break;
+        case GAME_OVER:
+            // set controller to inactive and clear any current state
+            ctrl_reset(&t->ctrl);
+
+            break;
+        case CLEAR_ANIMATION:
+            // set controller to inactive and clear any current state
+            ctrl_reset(&t->ctrl);
+
+            break;
+        default:
+            fprintf(stderr, "%d not a valid tetris state\n", state);
+            assert(0);
+    }
+}
+
 
 
 static uint32_t _fetch_next_piece_idx(tetris_t *t) {
@@ -391,6 +438,19 @@ static uint32_t _fetch_next_piece_idx(tetris_t *t) {
     return next;
 }
 
+
+
+
+/*
+ * fetches next piece from the piece queue and places the piece at the top of
+ * the board, to begin falling
+ */
+static void _get_next_falling_piece(tetris_t *t) {
+    // need to fetch next piece
+    uint32_t next_piece_idx = _fetch_next_piece_idx(t);
+    piece_init(&t->falling_piece, next_piece_idx, t->board.width,
+            t->board.height);
+}
 
 
 
@@ -495,10 +555,6 @@ static int _rotate_piece(tetris_t *t, int rotation) {
 
 
 
-// forward declaration
-static void _piece_placed(tetris_t *t);
-
-
 /*
  * advances game state by one step. If it was successfully able to do so, then
  * 1 is returned, otherwise, if the game ended due to a game over, 0 is
@@ -509,21 +565,18 @@ static void _piece_placed(tetris_t *t);
 static int _advance(tetris_t *t) {
     piece_t falling;
 
-    // we may loop once if a piece is placed and the new falling piece has to
+    // we may loop twice if a piece is placed and the new falling piece has to
     // be moved down one row. However, if in placing the piece we trigger an
     // animation (which would change the state of the game from PLAY), we do
     // not want to initialize the new piece or move it down
     while (t->state == PLAY) {
 
         falling = t->falling_piece;
-        if (falling.piece_idx == EMPTY) {
-            // need to fetch next piece
-            uint32_t next_piece_idx = _fetch_next_piece_idx(t);
-            piece_init(&falling, next_piece_idx, t->board.width,
-                    t->board.height);
-            t->falling_piece = falling;
-        }
-        // move the piece down
+
+        // the falling piece must always have been initialized before this point
+        TETRIS_ASSERT(falling.piece_idx != EMPTY);
+
+        // now to try to move the piece down
 
         // first, remove the piece from the board where it is
         board_remove_piece(&t->board, falling);
@@ -552,7 +605,9 @@ static int _advance(tetris_t *t) {
                 // on a successful place, make this call to check for filled rows
                 _piece_placed(t);
 
-                piece_init(&t->falling_piece, EMPTY, 0, 0);
+                // fetch the next piece and place it at the top of the board
+                _get_next_falling_piece(t);
+
                 // now need to move the new falling piece down
                 continue;
             }
@@ -637,7 +692,7 @@ static void _piece_placed(tetris_t *t) {
         c_anim_tmp.l_col = 4;
         c_anim_tmp.r_col = 5;
         t->c_anim = c_anim_tmp;
-        t->state = CLEAR_ANIMATION;
+        _switch_state(t, CLEAR_ANIMATION);
     }
 
 
@@ -674,6 +729,12 @@ static void _control_moved_piece(tetris_t *t, int move_type) {
 
 
 static void _handle_event(tetris_t *t, key_event *ev) {
+
+    if (!ctrl_is_active(&t->ctrl)) {
+        printf("inactive\n");
+        // only register keyboard inputs while active
+        return;
+    }
 
     // res is set if the falling piece was successfully moved to a new location
     // due to one of the following move/rotate methods
@@ -753,6 +814,12 @@ static int _is_minor_time_step(tetris_t *t) {
  * keys and management of the controller state
  */
 static void _handle_ctrl_callbacks(tetris_t *t) {
+
+    if (!ctrl_is_active(&t->ctrl)) {
+        // only register keyboard inputs while active
+        return;
+    }
+
     controller *c = &t->ctrl;
     int res = 0;
 
@@ -807,7 +874,7 @@ void tetris_step(tetris_t *t) {
 
                 if (!could_advance) {
                     // game is over
-                    t->state = GAME_OVER;
+                    _switch_state(t, GAME_OVER);
                     printf("Game over\n");
                 }
 
