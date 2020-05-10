@@ -271,21 +271,14 @@ typedef struct scorer {
 
 
 
-// flag set when there is a piece that was evicted from the piece hold (needs
-// to be next falling piece)
-#define PIECE_HOLD_READY 0x1
 
 // set after a piece swap occurs, and to be unset after the currently falling
 // piece is placed (so you can't swap more than once on a single tile)
-#define PIECE_HOLD_STALE 0x2
+#define PIECE_HOLD_STALE 0x1
 
 typedef struct piece_hold {
     // current piece being held
     uint8_t piece_idx;
-
-    // piece to be used as next falling piece (when a transfer occurs, evicting
-    // the current held piece)
-    uint8_t next_falling_piece;
 
     uint8_t flags;
 } piece_hold;

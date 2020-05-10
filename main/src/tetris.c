@@ -230,7 +230,7 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
 
         int32_t pts;
 
-        assert(num_rows_cleared <= 4);
+        TETRIS_ASSERT(num_rows_cleared <= 4);
         switch (num_rows_cleared) {
             case 1:
                 printf("Single");
@@ -246,7 +246,7 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
                 break;
             case 4:
                 printf("Tetris");
-                assert(!t_spin);
+                TETRIS_ASSERT(!t_spin);
                 pts = b2b ? 1200 : 800;
                 break;
         }
@@ -257,7 +257,7 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
 
         t->scorer.score += pts;
 
-        printf("\n");
+        printf(" %d\n", pts);
     }
     else {
         // if no lines were cleared, then we have to reset the combo count
@@ -301,17 +301,17 @@ static void _hold_piece(tetris_t *t) {
     // take the falling piece off the board
     board_remove_piece(&t->board, t->falling_piece);
 
-    // unset falling piece so that a new one is chosen on next major time step
-    t->falling_piece.piece_idx = EMPTY;
-
     // set the stale flag so this operation can't be performed again until a
     // piece is placed
     t->hold.flags |= PIECE_HOLD_STALE;
 
-    // set the ready flag if the prior held piece was not EMPTY
     if (held_piece != EMPTY) {
-        t->hold.flags |= PIECE_HOLD_READY;
-        t->hold.next_falling_piece = held_piece;
+        piece_init(&t->falling_piece, held_piece, t->board.width,
+                t->board.height);
+    }
+    else {
+        // need to grab the next falling piece from the queue
+        _get_next_falling_piece(t);
     }
 }
 
@@ -404,36 +404,27 @@ static void _switch_state(tetris_t *t, int state) {
 static uint32_t _fetch_next_piece_idx(tetris_t *t) {
     uint32_t next;
     
-    // first check if there is a piece evicted from the piece hold
-    if (t->hold.flags & PIECE_HOLD_READY) {
-        // if there was an evicted piece, make that the next falling piece
-        // and then clear the hold queue
-        next = t->hold.next_falling_piece;
-        t->hold.flags &= ~PIECE_HOLD_READY;
-    }
-    else {
-        // otherwise, take the next piece from the queue
-        next = t->piece_queue[t->queue_idx];
-        t->queue_idx++;
+    // take the next piece from the queue
+    next = t->piece_queue[t->queue_idx];
+    t->queue_idx++;
 
-        if (t->queue_idx == N_PIECES) {
-            // if we just grabbed the last piece in a group of 7, move
-            // the subsequent group of 7 down and generate a new group
-            // 7 to follow it
-            __builtin_memcpy(&t->piece_queue[0], &t->piece_queue[N_PIECES],
-                    N_PIECES * sizeof(t->piece_queue[0]));
+    if (t->queue_idx == N_PIECES) {
+        // if we just grabbed the last piece in a group of 7, move
+        // the subsequent group of 7 down and generate a new group
+        // 7 to follow it
+        __builtin_memcpy(&t->piece_queue[0], &t->piece_queue[N_PIECES],
+                N_PIECES * sizeof(t->piece_queue[0]));
 
-            // generate next sequence and permute it
-            for (uint32_t i = N_PIECES; i < 2 * N_PIECES; i++) {
-                t->piece_queue[i] = (i % N_PIECES) + 1;
-            }
-            permute(&t->piece_queue[N_PIECES], N_PIECES,
-                    sizeof(t->piece_queue[0]));
-
-            // reset queue index to reflect where the pieces moved
-            t->queue_idx = 0;
-
+        // generate next sequence and permute it
+        for (uint32_t i = N_PIECES; i < 2 * N_PIECES; i++) {
+            t->piece_queue[i] = (i % N_PIECES) + 1;
         }
+        permute(&t->piece_queue[N_PIECES], N_PIECES,
+                sizeof(t->piece_queue[0]));
+
+        // reset queue index to reflect where the pieces moved
+        t->queue_idx = 0;
+
     }
     return next;
 }
@@ -605,9 +596,6 @@ static int _advance(tetris_t *t) {
                 // on a successful place, make this call to check for filled rows
                 _piece_placed(t);
 
-                // fetch the next piece and place it at the top of the board
-                _get_next_falling_piece(t);
-
                 // now need to move the new falling piece down
                 continue;
             }
@@ -693,6 +681,10 @@ static void _piece_placed(tetris_t *t) {
         c_anim_tmp.r_col = 5;
         t->c_anim = c_anim_tmp;
         _switch_state(t, CLEAR_ANIMATION);
+    }
+    else {
+        // otherwise fetch the next piece and place it at the top of the board
+        _get_next_falling_piece(t);
     }
 
 
