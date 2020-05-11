@@ -26,6 +26,9 @@ uniform vec4 color_array[8 * 4];
 uniform uint width;
 uniform uint height;
 
+// set if the board is to be displayed in monochrome (grayed out)
+uniform bool grayed;
+
 
 // array of colors of each tile, sent over each frame
 uniform uint color_idxs[WIDTH * HEIGHT];
@@ -70,6 +73,15 @@ void main() {
     uint color = (color_idxs[color_idx] >> (el_idx * LOG_N_STATES))
         & COLOR_IDX_MASK;
 
-    p_color = color_array[color * 4U + shade_index];
+    vec4 col = color_array[color * 4U + shade_index];
+
+    if (grayed) {
+        // if grayed out, calculate grayed color
+        float avg = (col.x + col.y + col.z) / 3.f;
+        p_color = vec4(avg, avg, avg, col.w);
+    }
+    else {
+        p_color = col;
+    }
 }
 

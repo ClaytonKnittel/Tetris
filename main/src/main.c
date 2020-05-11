@@ -35,7 +35,6 @@ int main(int argc, char *argv[]) {
     seed_rand(stan);
     printf("srand: %llu\n", stan);
 
-
     gl_init(&c, WIDTH, HEIGHT);
     c.user_data = (void*) &t;
 
@@ -60,16 +59,14 @@ int main(int argc, char *argv[]) {
 
     scoreboard_init(&sb, &font, .5f, .45f, .5f, .15f);
 
-    up_next_init(&u, 3, .55f, -.8f, .28f, .9f, &font);
+    up_next_init(&u, 3, .55f, -.8f, .28f, .9f, &font, &t);
 
-    hold_init(&h, -.8f, .45f, .28f, .5f, &font);
+    hold_init(&h, -.8f, .45f, .28f, .5f, &font, &t);
 
     while (!gl_should_exit(&c)) {
         gl_clear(&c);
 
         tetris_step(&t);
-        up_next_set(&u, tetris_get_up_next(&t));
-        hold_set(&h, t.hold.piece_idx);
 
         board_draw(&t.board);
         frame_draw(&f);

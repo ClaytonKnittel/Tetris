@@ -12,6 +12,32 @@
 #define N_COLORS N_STATES
 
 
+static void _set_board_changed(board_t *b) {
+    b->flags |= BOARD_CHANGED;
+}
+
+static void _unset_board_changed(board_t *b) {
+    b->flags &= ~BOARD_CHANGED;
+}
+
+static int _board_changed(board_t *b) {
+    return b->flags & BOARD_CHANGED;
+}
+
+
+void board_set_grayed(board_t *b) {
+    b->flags |= BOARD_GRAYED;
+}
+
+void board_unset_grayed(board_t *b) {
+    b->flags &= ~BOARD_GRAYED;
+}
+
+static int _board_is_grayed(board_t *b) {
+    return b->flags & BOARD_GRAYED;
+}
+
+
 const static color_t color_theme[4 * N_COLORS] = {
     // color 0 (empty)
     gen_color(0, 0, 0, 0),
@@ -76,8 +102,11 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
     b->width_loc = gl_uniform_location(&b->p, "width");
     b->height_loc = gl_uniform_location(&b->p, "height");
 
+    b->grayed_loc = gl_uniform_location(&b->p, "grayed");
+
     b->color_idxs_loc = gl_uniform_location(&b->p, "color_idxs");
 
+    b->flags = 0;
 
     square_init(&b->tile_prot, .08f, &b->p);
 
@@ -103,6 +132,9 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
     glUniform1ui(b->width_loc, b->width);
     glUniform1ui(b->height_loc, b->height);
 
+    // need to initialize volatile data in board in first render call
+    _set_board_changed(b);
+
     return 0;
 }
 
@@ -117,7 +149,7 @@ void board_destroy(board_t *b) {
 void board_clear(board_t *b) {
     memset(b->color_idxs, 0, color_idxs_arr_len(b->width * b->height) *
             sizeof(uint32_t));
-    b->tiles_changed = 1;
+    _set_board_changed(b);
 }
 
 
@@ -131,7 +163,7 @@ int board_set_tile(board_t *b, int32_t x, int32_t y,
         return 0;
     }
 
-    b->tiles_changed = 1;
+    _set_board_changed(b);
 
     uint32_t idx = y * b->width + x;
     uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
@@ -255,11 +287,12 @@ int board_piece_collides(board_t *b, piece_t piece) {
 void board_draw(board_t *b) {
     gl_use_program(&b->p);
 
-    if (b->tiles_changed) {
+    if (_board_changed(b)) {
         // send over all color information about tiles
         glUniform1uiv(b->color_idxs_loc, b->width * b->height, b->color_idxs);
+        glUniform1ui(b->grayed_loc, _board_is_grayed(b));
 
-        b->tiles_changed = 0;
+        _unset_board_changed(b);
     }
 
     shape_draw_instanced(&b->tile_prot, b->width * b->height);

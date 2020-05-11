@@ -284,6 +284,10 @@ typedef struct piece_hold {
 } piece_hold;
 
 
+#define piece_hold_is_stale(t) \
+    ((t)->hold.flags & PIECE_HOLD_STALE)
+
+
 
 typedef struct tetris {
     // piece currently being controlled by player

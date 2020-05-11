@@ -11,7 +11,8 @@ extern const float aspect_ratio;
 #define TEXT_PERC (1.f - BOX_PERC - PADDING)
 
 
-int hold_init(hold_t *ph, float x, float y, float w, float h, font_t *font) {
+int hold_init(hold_t *ph, float x, float y, float w, float h, font_t *font,
+        tetris_t *t) {
 
     // board is just 4x4 square, will only ever hold 1 picee
     uint32_t b_w = PIECE_BB_W;
@@ -29,6 +30,7 @@ int hold_init(hold_t *ph, float x, float y, float w, float h, font_t *font) {
     board_set_yscale(&ph->board, board_h);
 
     ph->font = font;
+    ph->t = t;
 
     ph->text_x = x;
     ph->text_y = y + board_h + (PADDING * h);
@@ -59,6 +61,18 @@ void hold_set(hold_t *h, uint8_t piece_idx) {
 
 
 void hold_draw(hold_t *h) {
+    // update piece in hold
+    hold_set(h, h->t->hold.piece_idx);
+
+    // set the board to grayed out if the up next piece in the tetris
+    // game is stale
+    if (piece_hold_is_stale(h->t)) {
+        board_set_grayed(&h->board);
+    }
+    else {
+        board_unset_grayed(&h->board);
+    }
+
     board_draw(&h->board);
 
     font_render(h->font, "Hold", h->text_x, h->text_y, h->text_w, h->text_h);

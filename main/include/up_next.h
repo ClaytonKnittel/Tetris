@@ -5,11 +5,13 @@
 #include <gl/font.h>
 
 #include <board.h>
+#include <tetris.h>
 
 
 typedef struct up_next {
     board_t board;
     font_t *font;
+    tetris_t *t;
     uint32_t size;
 
     // for "Next" text on screen
@@ -26,7 +28,7 @@ typedef struct up_next {
  * h is the height of the entire window (text + queue)
  */
 int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
-        float w, float h, font_t *font);
+        float w, float h, font_t *font, tetris_t *t);
 
 
 void up_next_destroy(up_next_t *u);

@@ -5,11 +5,13 @@
 #include <gl/font.h>
 
 #include <board.h>
+#include <tetris.h>
 
 
 typedef struct hold {
     board_t board;
     font_t *font;
+    tetris_t *t;
     
     // for "Hold" text on screen
     float text_x, text_y, text_w, text_h;
@@ -23,7 +25,8 @@ typedef struct hold {
  * text field (width of box is calculated so that tiles are squares) and
  * h is the height of the endtire window (text + box)
  */
-int hold_init(hold_t *ph, float x, float y, float w, float h, font_t *font);
+int hold_init(hold_t *ph, float x, float y, float w, float h, font_t *font,
+        tetris_t *t);
 
 
 void hold_destroy(hold_t *h);

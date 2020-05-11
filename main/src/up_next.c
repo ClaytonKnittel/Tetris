@@ -13,7 +13,7 @@ extern const float aspect_ratio;
 
 
 int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
-        float w, float h, font_t *font) {
+        float w, float h, font_t *font, tetris_t *t) {
 
     assert(queue_size > 0);
 
@@ -33,6 +33,7 @@ int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
 
     u->size = queue_size;
     u->font = font;
+    u->t = t;
 
     u->text_x = x;
     u->text_y = y + board_h + (PADDING * h);
@@ -65,6 +66,9 @@ void up_next_set(up_next_t *u, uint8_t *pieces) {
 
 
 void up_next_draw(up_next_t *u) {
+    // update contents of up next
+    up_next_set(u, tetris_get_up_next(u->t));
+
     board_draw(&u->board);
 
     font_render(u->font, "Next", u->text_x, u->text_y, u->text_w, u->text_h);

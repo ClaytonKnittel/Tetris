@@ -214,7 +214,8 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
         }
         t->scorer.status |= SCORER_LAST_CLEAR_WAS_HARD;
     }
-    else {
+    else if (num_rows_cleared > 0) {
+        // if this was a clear, but not a hard one, unset the flag
         t->scorer.status &= ~SCORER_LAST_CLEAR_WAS_HARD;
     }
 
@@ -276,6 +277,7 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
 static void _init_piece_hold(piece_hold *p) {
     __builtin_memset(p, 0, sizeof(piece_hold));
 }
+
 
 
 /*

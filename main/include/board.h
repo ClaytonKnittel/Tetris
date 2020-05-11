@@ -21,6 +21,10 @@
     (((n_tiles) + COLOR_IDXS_PER_INT - 1) / COLOR_IDXS_PER_INT)
 
 
+#define BOARD_CHANGED 0x1
+#define BOARD_GRAYED 0x2
+
+
 typedef struct board {
     // tile prototype shape (will be instanced)
     shape tile_prot;
@@ -31,13 +35,19 @@ typedef struct board {
     // width and height of board, in tiles
     uint32_t width, height;
 
-    // set whenever any of the tiles on the board have been changed
-    int tiles_changed;
+    /*
+     * status flags for board, possible values are:
+     *  BOARD_CHANGED: set whenever any of the tiles on the board have
+     *      been changed
+     *  BOARD_GRAYED: set if the board is to be displayed grayed out
+     */
+    uint32_t flags;
 
     program p;
     // see board.vs for descriptions of these
     GLuint color_array_loc, color_idxs_loc;
     GLuint width_loc, height_loc;
+    GLuint grayed_loc;
 } board_t;
 
 
@@ -57,6 +67,15 @@ static void board_set_xscale(board_t *b, float xscale) {
 static void board_set_yscale(board_t *b, float yscale) {
     shape_set_yscale(&b->tile_prot, yscale);
 }
+
+
+/*
+ * the two following functions set and unset the board to be rendered in
+ * grayscale (respectively)
+ */
+void board_set_grayed(board_t *b);
+
+void board_unset_grayed(board_t *b);
 
 
 
