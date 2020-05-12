@@ -9,4 +9,5 @@ fi
 brew install glew
 brew install glfw3
 brew install freetype
+brew install pkg-config
 
