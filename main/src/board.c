@@ -26,11 +26,25 @@ static int _board_changed(board_t *b) {
 
 
 void board_set_grayed(board_t *b) {
-    b->flags |= BOARD_GRAYED;
+    uint32_t flags = b->flags;
+    uint32_t new_flags = flags | BOARD_GRAYED;
+
+    // only set the changed flags if the new value for board grayed is
+    // different from the old value
+    new_flags |= flags == new_flags ? 0 : BOARD_CHANGED;
+
+    b->flags = new_flags;
 }
 
 void board_unset_grayed(board_t *b) {
-    b->flags &= ~BOARD_GRAYED;
+    uint32_t flags = b->flags;
+    uint32_t new_flags = flags & ~BOARD_GRAYED;
+
+    // only set the changed flags if the new value for board grayed is
+    // different from the old value
+    new_flags |= flags == new_flags ? 0 : BOARD_CHANGED;
+
+    b->flags = new_flags;
 }
 
 static int _board_is_grayed(board_t *b) {

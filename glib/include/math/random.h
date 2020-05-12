@@ -5,36 +5,15 @@
 #include <stdint.h>
 
 
-// each threads get a unique random seed
-extern __thread uint32_t __seed;
+// seeds random number generator with given value
+void seed_rand(uint64_t init_seed, uint64_t seq_num);
 
 
+// generates next random number in sequence
+uint64_t gen_rand();
 
-static void seed_rand(uint64_t init_seed) {
-    __seed = init_seed;
-}
-
-
-static uint32_t __rand_hash(uint32_t seed) {
-    uint64_t v = (uint64_t) seed;
-    v = (~v) + (v << 18);
-    v ^= v >> 31;
-    v *= 21;
-    v &= v >> 11;
-    v += v << 6;
-    v ^= v >> 22;
-    return (uint32_t) v;
-}
-
-/*
- * generate random number (32 bit)
- */
-static uint32_t gen_rand() {
-    uint32_t res = __rand_hash(__seed);
-    __seed = res;
-    return res;
-}
-
+// generates a random number from 0 to max - 1
+uint32_t gen_rand_r(uint32_t max);
 
 
 #endif /* _RANDOM_H */

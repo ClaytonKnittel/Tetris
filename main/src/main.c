@@ -32,8 +32,8 @@ int main(int argc, char *argv[]) {
     hold_t h;
 
     uint64_t stan = time(NULL);
-    seed_rand(stan);
-    printf("srand: %llu\n", stan);
+    seed_rand(stan, 0);
+    printf("srand: (%llu, 0)\n", stan);
 
     gl_init(&c, WIDTH, HEIGHT);
     c.user_data = (void*) &t;
