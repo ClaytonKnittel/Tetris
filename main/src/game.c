@@ -1,7 +1,27 @@
 
+#include <gl/gl.h>
+
+#include <tutil.h>
 #include <game.h>
 
 extern const float aspect_ratio;
+
+
+
+static void _default_key_event(gl_context *context, int key, int scancode,
+        int action, int mods) {
+
+    game_t *g = (game_t*) context->user_data;
+    tetris_t *t = &g->t;
+
+    key_event e = {
+        .key = key,
+        .scancode = scancode,
+        .action = action,
+        .mods = mods
+    };
+    key_event_queue_push(&t->kq, &e);
+}
 
 
 int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
@@ -15,11 +35,9 @@ int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
 
     float w = 2.f * aspect_ratio * ((float) TETRIS_WIDTH) /
         ((float) TETRIS_HEIGHT);
-    vec2 pos = {
-        .x = -w / 2.f,
-        .y = -1.f
-    };
-    tetris_init(t, c, pos, w, 2.f);
+    float x = -w / 2.f;
+    float y = -1.f;
+    tetris_init(t, c, x, y, w, 2.f);
 
     if (flags & SHOW_FRAME) {
         frame_init(f, TETRIS_WIDTH, TETRIS_HEIGHT);
@@ -38,6 +56,13 @@ int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
 
     if (flags & SHOW_HOLD) {
         hold_init(h, -.8f, .45f, .28f, .5f, font, t);
+    }
+
+    if (flags & MANUAL_CONTROL) {
+        g->ctrl_callback = NULL;
+    }
+    else {
+        gl_register_key_callback(c, &_default_key_event);
     }
 
     return 0;
@@ -61,8 +86,43 @@ void game_destroy(game_t *g) {
     tetris_destroy(&g->t);
 }
 
+void game_set_ctrl_callback(game_t *g,
+        void (*ctrl_cb)(game_t*, board_t*, void*),
+        void *ctrl_arg) {
+
+    // the callback is only called when manual controls are enabled
+    TETRIS_ASSERT(g->flags & MANUAL_CONTROL);
+
+    g->ctrl_callback = ctrl_cb;
+    g->ctrl_arg = ctrl_arg;
+}
+
+
+// emulates a single button press by pushing both the press and release action
+// on the same key to the queue
+void game_press(game_t *g, int key) {
+
+    key_event e = {
+        .key = key,
+        .scancode = 0,
+        .action = GLFW_PRESS,
+        .mods = 0
+    };
+    key_event_queue_push(&g->t.kq, &e);
+
+    e.action = GLFW_RELEASE;
+    key_event_queue_push(&g->t.kq, &e);
+}
+
+
+
 void game_tick(game_t *g) {
     tetris_step(&g->t);
+
+    if (g->flags & MANUAL_CONTROL) {
+        TETRIS_ASSERT(g->ctrl_callback != NULL);
+        g->ctrl_callback(g, &g->t.board, g->ctrl_arg);
+    }
 }
 
 void game_render(game_t *g) {

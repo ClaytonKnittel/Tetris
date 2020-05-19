@@ -1,6 +1,7 @@
 #ifndef _TUTIL_H
 #define _TUTIL_H
 
+#include <assert.h>
 #include <stdlib.h>
 
 #include <print_colors.h>

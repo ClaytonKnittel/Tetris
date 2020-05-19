@@ -17,28 +17,6 @@ static void _piece_placed(tetris_t *t);
 
 
 
-static void _key_event(gl_context *context, int key, int scancode, int action,
-        int mods) {
-
-    tetris_t *t = (tetris_t*) context->user_data;
-
-    key_event e = {
-        .key = key,
-        .scancode = scancode,
-        .action = action,
-        .mods = mods
-    };
-    key_event_queue_push(&t->kq, &e);
-}
-
-/*
- * initializes key event callback routine
- */
-static void _init_key_listeners(tetris_t *t, gl_context *context) {
-    gl_register_key_callback(context, &_key_event);
-}
-
-
 static void _init_fp_data(falling_piece_data *f) {
     f->falling_status = 0;
     f->ground_hit_count = 0;
@@ -319,11 +297,11 @@ static void _hold_piece(tetris_t *t) {
 
 
 
-void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
+void tetris_init(tetris_t *t, gl_context *context, float x, float y,
         float screen_width, float screen_height) {
 
     board_init(&t->board, TETRIS_WIDTH, TETRIS_HEIGHT);
-    board_set_pos(&t->board, pos.x, pos.y);
+    board_set_pos(&t->board, x, y);
     board_set_xscale(&t->board, screen_width);
     board_set_yscale(&t->board, screen_height);
 
@@ -355,7 +333,6 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
     _switch_state(t, PLAY);
 
     key_event_queue_init(&t->kq);
-    _init_key_listeners(t, context);
 
     // initialize time to 0
     t->time = 0LU;
@@ -548,8 +525,6 @@ static int _rotate_piece(tetris_t *t, int rotation) {
                 t->falling_piece = new_falling;
                 return 1;
             }
-
-            printf("tried (%d, %d)\n", dx, dy);
 
             // move it back before next iteration
             piece_move(&new_falling, -dx, -dy);

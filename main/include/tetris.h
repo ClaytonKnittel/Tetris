@@ -369,8 +369,8 @@ typedef struct tetris {
 } tetris_t;
 
 
-void tetris_init(tetris_t *t, gl_context *context, vec2 pos, float screen_width,
-        float screen_height);
+void tetris_init(tetris_t *t, gl_context *context, float x, float y,
+        float screen_width, float screen_height);
 
 
 static void tetris_destroy(tetris_t *t) {
