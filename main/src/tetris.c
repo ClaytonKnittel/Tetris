@@ -359,9 +359,25 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos,
 
     // initialize time to 0
     t->time = 0LU;
-    t->major_tick_count = 16;
-    t->minor_tick_count = 4;
 
+    t->major_tick_count = 16.f;
+    t->major_tick_time  = 0.f;
+
+    t->minor_tick_count = 4.f;
+    t->minor_tick_time  = 0.f;
+
+    t->key_callback_count = DEFAULT_HELD_KEY_PERIOD;
+    t->key_callback_time  = 0.f;
+
+}
+
+
+
+void tetris_set_falling_speed(tetris_t *t, double period) {
+    double prev_period = t->major_tick_count;
+    // set time to same percentage of the way through current tick as before
+    t->major_tick_time *= period / prev_period;
+    t->major_tick_count = period;
 }
 
 
@@ -608,10 +624,10 @@ static int _advance(tetris_t *t) {
                 t->fp_data.falling_status |= HIT_GROUND_LAST_FRAME;
 
                 // artificially advance time forward to
-                // CTRL_HIT_GROUND_LAST_DELAY ticks before the next major time
-                // step
-                t->time += (t->major_tick_count - MIN(t->major_tick_count,
-                            CTRL_HIT_GROUND_LAST_DELAY));
+                // CTRL_HIT_GROUND_LAST_DELAY% of major time step delay before
+                // the next major time step
+                t->major_tick_time += CTRL_HIT_GROUND_LAST_DELAY *
+                    t->major_tick_count;
                 break;
             }
         }
@@ -725,7 +741,6 @@ static void _control_moved_piece(tetris_t *t, int move_type) {
 static void _handle_event(tetris_t *t, key_event *ev) {
 
     if (!ctrl_is_active(&t->ctrl)) {
-        printf("inactive\n");
         // only register keyboard inputs while active
         return;
     }
@@ -796,11 +811,15 @@ static void _handle_event(tetris_t *t, key_event *ev) {
 
 
 static int _is_major_time_step(tetris_t *t) {
-    return (t->time % t->major_tick_count) == 0;
+    return t->major_tick_time < 1;
 }
 
 static int _is_minor_time_step(tetris_t *t) {
-    return (t->time % t->minor_tick_count) == 0;
+    return t->minor_tick_time < 1;
+}
+
+static int _is_key_callback_step(tetris_t *t) {
+    return t->key_callback_time < 1;
 }
 
 /*
@@ -814,10 +833,14 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
         return;
     }
 
+    int is_major_ts = _is_major_time_step(t);
+    int is_minor_ts = _is_minor_time_step(t);
+    int is_keycb_ts = _is_key_callback_step(t);
+
     controller *c = &t->ctrl;
     int res = 0;
 
-    if (c->keypress_flags & LEFT_KEY) {
+    if (is_keycb_ts && (c->keypress_flags & LEFT_KEY)) {
         if (c->l_hold_count == REPEAT_TIMER) {
             res |= _move_piece(t, -1, 0);
         }
@@ -825,7 +848,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
             c->l_hold_count++;
         }
     }
-    if (c->keypress_flags & RIGHT_KEY) {
+    if (is_keycb_ts && (c->keypress_flags & RIGHT_KEY)) {
         if (c->r_hold_count == REPEAT_TIMER) {
             res |= _move_piece(t, 1, 0);
         }
@@ -833,7 +856,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
             c->r_hold_count++;
         }
     }
-    if (c->keypress_flags & DOWN_KEY) {
+    if ((is_minor_ts && !is_major_ts) && (c->keypress_flags & DOWN_KEY)) {
         // only do this callback on exclusively minor time steps, since the
         // tile is moved down in major time steps by _advance
         if (!_is_major_time_step(t)) {
@@ -845,6 +868,26 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
         // only translations can be repeated by holding down, so the only move
         // that could have been executed here is a translation
         _control_moved_piece(t, MOVE_TRANSLATE);
+    }
+}
+
+
+static void _tick(tetris_t *t) {
+    t->time++;
+
+    t->major_tick_time++;
+    if (t->major_tick_time >= t->major_tick_count) {
+        t->major_tick_time -= t->major_tick_count;
+    }
+
+    t->minor_tick_time++;
+    if (t->minor_tick_time >= t->minor_tick_count) {
+        t->minor_tick_time -= t->minor_tick_count;
+    }
+
+    t->key_callback_time++;
+    if (t->key_callback_time >= t->key_callback_count) {
+        t->key_callback_time -= t->key_callback_count;
     }
 }
 
@@ -882,10 +925,8 @@ void tetris_step(tetris_t *t) {
                         MIN(t->fp_data.min_h_inc_time + 1, MAX_MIN_H_INC_TIME);
                 }
             }
-            if (_is_minor_time_step(t)) {
-                _handle_ctrl_callbacks(t);
 
-            }
+            _handle_ctrl_callbacks(t);
 
             break;
 
@@ -908,7 +949,7 @@ void tetris_step(tetris_t *t) {
             __builtin_unreachable();
     }
 
-    t->time++;
+    _tick(t);
 }
 
 

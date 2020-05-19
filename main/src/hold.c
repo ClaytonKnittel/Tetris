@@ -75,6 +75,7 @@ void hold_draw(hold_t *h) {
 
     board_draw(&h->board);
 
+    font_set_color(h->font, gen_color(255, 255, 255, 255));
     font_render(h->font, "Hold", h->text_x, h->text_y, h->text_w, h->text_h);
 }
 

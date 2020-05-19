@@ -29,42 +29,19 @@ typedef struct key_event_queue {
 
 
 
-static void key_event_queue_init(key_event_queue *q) {
-    q->front = 0;
-    q->back  = 0;
-}
+void key_event_queue_init(key_event_queue *q);
 
 /*
  * pushes event onto the queue. Can fail silently if the queue is full
  */
-static void key_event_queue_push(key_event_queue *q, key_event *e) {
-    uint64_t back = q->back;
-
-    if (q->front == (back + 1) % QUEUE_CAPACITY) {
-        // queue is full
-        return;
-    }
-
-    q->__m[back] = *e;
-    __atomic_store_n(&q->back, (back + 1) % QUEUE_CAPACITY, __ATOMIC_RELEASE);
-}
+void key_event_queue_push(key_event_queue *q, key_event *e);
 
 
 /*
  * pops an event off the queue, populating e. If the queue was empty,
  * then 0 is returned, otherwise 1 is returned
  */
-static int key_event_queue_pop(key_event_queue *q, key_event *e) {
-    uint64_t slot = __atomic_load_n(&q->front, __ATOMIC_ACQUIRE);
-    if (q->back == slot) {
-        // queue is empty
-        return 0;
-    }
-
-    *e = q->__m[slot];
-    q->front = (slot + 1) % QUEUE_CAPACITY;
-    return 1;
-}
+int key_event_queue_pop(key_event_queue *q, key_event *e);
 
 
 #endif /* _KEY_EVENT_H */

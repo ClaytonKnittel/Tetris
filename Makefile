@@ -14,7 +14,7 @@ main:
 
 .PHONY: glib
 glib:
-	@(make -C $(LIBDIR) BASE_DIR=${CURDIR} LDIR=$(LDIR))
+	@(make -C $(LIBDIR) BASE_DIR=${CURDIR} TDIR=$(TDIR) LDIR=$(LDIR))
 
 .PHONY: clean
 clean:

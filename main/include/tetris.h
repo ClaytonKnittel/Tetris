@@ -30,7 +30,12 @@
  */
 #define HIT_GROUND_LAST_FRAME 0x1
 
-#define FAST_FALLING_SPEEDUP 4
+// how much faster fast falling is compared to normal falling (must be an
+// integer)
+#define FAST_FALLING_SPEEDUP 5
+
+// default avg. # frames between callbacks to held-down keys
+#define DEFAULT_HELD_KEY_PERIOD 4.
 
 // max number of times we allow the tile to hit into the ground before locking
 // it there anyway (so you can't rotate forever and never place a tile)
@@ -52,9 +57,9 @@
 #define REPEAT_TIMER 2
 
 
-// number of frames (not time steps) between a ground hit detection and the
+// fraction of major time step between a ground hit detection and the
 // time the ground hit will be tested again
-#define CTRL_HIT_GROUND_LAST_DELAY 6
+#define CTRL_HIT_GROUND_LAST_DELAY .4f
 
 
 typedef struct falling_piece_data {
@@ -345,8 +350,16 @@ typedef struct tetris {
 
     // frames per step of animation (60 fps, so if major tick count is 60,
     // then the game advances by one step every second)
-    uint32_t major_tick_count;
-    uint32_t minor_tick_count;
+    // a frame is counted if (time / tick_count) 
+    float major_tick_count;
+    float major_tick_time;
+    float minor_tick_count;
+    float minor_tick_time;
+
+    // frames between calls to key callbacks (i.e. how fast a held down key
+    // will be pressed)
+    float key_callback_count;
+    float key_callback_time;
 
     // align shared data with cache line
     char __attribute__((aligned(64))) __pad2[0];
@@ -363,6 +376,13 @@ void tetris_init(tetris_t *t, gl_context *context, vec2 pos, float screen_width,
 static void tetris_destroy(tetris_t *t) {
     board_destroy(&t->board);
 }
+
+
+/*
+ * sets falling speed of the game (period is average number of frames between
+ * major time steps)
+ */
+void tetris_set_falling_speed(tetris_t *t, double period);
 
 
 

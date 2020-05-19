@@ -71,6 +71,7 @@ void up_next_draw(up_next_t *u) {
 
     board_draw(&u->board);
 
+    font_set_color(u->font, gen_color(255, 255, 255, 255));
     font_render(u->font, "Next", u->text_x, u->text_y, u->text_w, u->text_h);
 }
 

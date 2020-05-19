@@ -8,6 +8,9 @@ LIBDIR=$(BASE_DIR)/glib
 LDIR=$(BASE_DIR)/lib
 BDIR=$(BASE_DIR)/bin
 
+# testing binary directory
+TDIR=$(BDIR)
+
 IFLAGS=-I$(GAMEDIR)/include -I$(LIBDIR)/include $(shell pkg-config --cflags freetype2)
 LFLAGS=-L$(LDIR)
 

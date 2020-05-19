@@ -56,6 +56,8 @@ int gl_init(gl_context *context, GLint width, GLint height) {
     glewExperimental = GL_TRUE; // Needed in core profile
     if (glewInit() != GLEW_OK) {
         fprintf(stderr, "Failed to initialize GLEW\n");
+        glfwDestroyWindow(window);
+        glfwTerminate();
         return -1;
     }
 
