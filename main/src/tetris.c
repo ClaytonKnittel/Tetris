@@ -11,7 +11,6 @@
 
 
 // forward declarations
-static void _get_next_falling_piece(tetris_t *t);
 static void _switch_state(tetris_t *t, int state);
 static void _piece_placed(tetris_t *t);
 
@@ -79,10 +78,10 @@ static void _clear_next_row(tetris_t *t) {
 
             // clear the columns if they are in range of the board
             if (l_col >= 0) {
-                board_set_tile(&t->board, l_col, r, EMPTY);
+                board_set_tile(&t->game_state.board, l_col, r, EMPTY);
             }
-            if (r_col < t->board.width) {
-                board_set_tile(&t->board, r_col, r, EMPTY);
+            if (r_col < t->game_state.board.width) {
+                board_set_tile(&t->game_state.board, r_col, r, EMPTY);
             }
         }
     }
@@ -99,7 +98,7 @@ static void _clear_next_row(tetris_t *t) {
 static int _clear_animation_done(tetris_t *t) {
     clear_animator *a = &t->c_anim;
 
-    return a->l_col < 0 && a->r_col >= t->board.width;
+    return a->l_col < 0 && a->r_col >= t->game_state.board.width;
 }
 
 
@@ -122,7 +121,7 @@ static void _finish_clear_animation(tetris_t *t) {
             if (dst_row != row) {
                 // if the current row is not empty and dst_row has already been
                 // offset from row, we need to topple row down to dst_row
-                board_copy_row(&t->board, dst_row, row);
+                board_copy_row(&t->game_state.board, dst_row, row);
             }
 
             dst_row++;
@@ -130,13 +129,13 @@ static void _finish_clear_animation(tetris_t *t) {
         row++;
     }
     // topple down remaining rows
-    for (; row < t->board.height; row++, dst_row++) {
-        board_copy_row(&t->board, dst_row, row);
+    for (; row < t->game_state.board.height; row++, dst_row++) {
+        board_copy_row(&t->game_state.board, dst_row, row);
     }
 
     // clear the top most rows which were already toppled but not overwritten
-    for (; dst_row < t->board.height; dst_row++) {
-        board_clear_row(&t->board, dst_row);
+    for (; dst_row < t->game_state.board.height; dst_row++) {
+        board_clear_row(&t->game_state.board, dst_row);
     }
 
     // now may resume the game
@@ -166,14 +165,14 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
         // if at least 3 are occupied
         // note: center of piece is at (1, 1), relative to piece coordinates
 
-        int8_t x = t->falling_piece.board_x;
-        int8_t y = t->falling_piece.board_y;
+        int8_t x = t->game_state.falling_piece.board_x;
+        int8_t y = t->game_state.falling_piece.board_y;
 
         int tot_occ = 0;
-        tot_occ += board_get_tile(&t->board, x, y) != EMPTY;
-        tot_occ += board_get_tile(&t->board, x + 2, y) != EMPTY;
-        tot_occ += board_get_tile(&t->board, x, y + 2) != EMPTY;
-        tot_occ += board_get_tile(&t->board, x + 2, y + 2) != EMPTY;
+        tot_occ += board_get_tile(&t->game_state.board, x, y) != EMPTY;
+        tot_occ += board_get_tile(&t->game_state.board, x + 2, y) != EMPTY;
+        tot_occ += board_get_tile(&t->game_state.board, x, y + 2) != EMPTY;
+        tot_occ += board_get_tile(&t->game_state.board, x + 2, y + 2) != EMPTY;
 
         if (tot_occ >= 3) {
             printf("T-Spin ");
@@ -276,22 +275,22 @@ static void _hold_piece(tetris_t *t) {
     
     held_piece = t->hold.piece_idx;
 
-    t->hold.piece_idx = t->falling_piece.piece_idx;
+    t->hold.piece_idx = t->game_state.falling_piece.piece_idx;
 
     // take the falling piece off the board
-    board_remove_piece(&t->board, t->falling_piece);
+    board_remove_piece(&t->game_state.board, t->game_state.falling_piece);
 
     // set the stale flag so this operation can't be performed again until a
     // piece is placed
     t->hold.flags |= PIECE_HOLD_STALE;
 
     if (held_piece != EMPTY) {
-        piece_init(&t->falling_piece, held_piece, t->board.width,
-                t->board.height);
+        piece_init(&t->game_state.falling_piece, held_piece,
+                t->game_state.board.width, t->game_state.board.height);
     }
     else {
         // need to grab the next falling piece from the queue
-        _get_next_falling_piece(t);
+        tetris_get_next_falling_piece(&t->game_state);
     }
 }
 
@@ -300,23 +299,25 @@ static void _hold_piece(tetris_t *t) {
 void tetris_init(tetris_t *t, gl_context *context, float x, float y,
         float screen_width, float screen_height) {
 
-    board_init(&t->board, TETRIS_WIDTH, TETRIS_HEIGHT);
-    board_set_pos(&t->board, x, y);
-    board_set_xscale(&t->board, screen_width);
-    board_set_yscale(&t->board, screen_height);
+    board_init(&t->game_state.board, TETRIS_WIDTH, TETRIS_HEIGHT);
+    board_set_pos(&t->game_state.board, x, y);
+    board_set_xscale(&t->game_state.board, screen_width);
+    board_set_yscale(&t->game_state.board, screen_height);
+
+    uint8_t *piece_queue = t->game_state.piece_queue;
 
     // first assign all pieces sequentially in the queue
     for (uint32_t i = 0; i < 2 * N_PIECES; i++) {
-        t->piece_queue[i] = (i % N_PIECES) + 1;
+        piece_queue[i] = (i % N_PIECES) + 1;
     }
-    t->queue_idx = 0;
+    t->game_state.queue_idx = 0;
 
     // then randomize both groups of 7
-    permute(&t->piece_queue[0],        N_PIECES, sizeof(t->piece_queue[0]));
-    permute(&t->piece_queue[N_PIECES], N_PIECES, sizeof(t->piece_queue[0]));
+    permute(&piece_queue[0],        N_PIECES, sizeof(piece_queue[0]));
+    permute(&piece_queue[N_PIECES], N_PIECES, sizeof(piece_queue[0]));
 
     // initialize falling piece to empty (no piece)
-    piece_init(&t->falling_piece, EMPTY, 0, 0);
+    piece_init(&t->game_state.falling_piece, EMPTY, 0, 0);
 
     _init_fp_data(&t->fp_data);
 
@@ -375,7 +376,7 @@ static void _switch_state(tetris_t *t, int state) {
             // need to fetch next falling piece and initialize it at the top,
             // as there must always be a falling piece while the controller is
             // active
-            _get_next_falling_piece(t);
+            tetris_get_next_falling_piece(&t->game_state);
 
             break;
         case GAME_OVER:
@@ -396,31 +397,35 @@ static void _switch_state(tetris_t *t, int state) {
 
 
 
-static uint32_t _fetch_next_piece_idx(tetris_t *t) {
+static uint32_t _fetch_next_piece_idx(tetris_state *state) {
     uint32_t next;
+    uint8_t *piece_queue = state->piece_queue;
+    uint16_t queue_idx = state->queue_idx;
     
     // take the next piece from the queue
-    next = t->piece_queue[t->queue_idx];
-    t->queue_idx++;
+    next = piece_queue[queue_idx];
+    queue_idx++;
 
-    if (t->queue_idx == N_PIECES) {
+    if (queue_idx == N_PIECES) {
         // if we just grabbed the last piece in a group of 7, move
         // the subsequent group of 7 down and generate a new group
         // 7 to follow it
-        __builtin_memcpy(&t->piece_queue[0], &t->piece_queue[N_PIECES],
-                N_PIECES * sizeof(t->piece_queue[0]));
+        __builtin_memcpy(&piece_queue[0], &piece_queue[N_PIECES],
+                N_PIECES * sizeof(piece_queue[0]));
 
         // generate next sequence and permute it
         for (uint32_t i = N_PIECES; i < 2 * N_PIECES; i++) {
-            t->piece_queue[i] = (i % N_PIECES) + 1;
+            piece_queue[i] = (i % N_PIECES) + 1;
         }
-        permute(&t->piece_queue[N_PIECES], N_PIECES,
-                sizeof(t->piece_queue[0]));
+        permute(&piece_queue[N_PIECES], N_PIECES,
+                sizeof(piece_queue[0]));
 
         // reset queue index to reflect where the pieces moved
-        t->queue_idx = 0;
+        queue_idx = 0;
 
     }
+
+    state->queue_idx = queue_idx;
     return next;
 }
 
@@ -431,11 +436,11 @@ static uint32_t _fetch_next_piece_idx(tetris_t *t) {
  * fetches next piece from the piece queue and places the piece at the top of
  * the board, to begin falling
  */
-static void _get_next_falling_piece(tetris_t *t) {
+void tetris_get_next_falling_piece(tetris_state *state) {
     // need to fetch next piece
-    uint32_t next_piece_idx = _fetch_next_piece_idx(t);
-    piece_init(&t->falling_piece, next_piece_idx, t->board.width,
-            t->board.height);
+    uint32_t next_piece_idx = _fetch_next_piece_idx(state);
+    piece_init(&state->falling_piece, next_piece_idx, state->board.width,
+            state->board.height);
 }
 
 
@@ -447,32 +452,33 @@ static void _get_next_falling_piece(tetris_t *t) {
  * updated and 1 is returned, otherwise it is left where it was and 0 is
  * returned
  */
-static int _move_piece(tetris_t *t, int dx, int dy) {
+int tetris_move_piece(tetris_state *state, int dx, int dy) {
     piece_t falling;
     piece_t new_falling;
 
-    falling = t->falling_piece;
+    falling = state->falling_piece;
 
     // first, remove the piece from the board where it is
-    board_remove_piece(&t->board, falling);
+    board_remove_piece(&state->board, falling);
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
     piece_move(&new_falling, dx, dy);
 
     // check to see if there would be any collisions here
-    if (board_piece_collides(&t->board, new_falling)) {
+    if (board_piece_collides(&state->board, new_falling)) {
         // then the piece cannot move, so put it back
-        board_place_piece(&t->board, falling);
+        board_place_piece(&state->board, falling);
         return 0;
     }
     else {
         // otherwise, the piece can now be moved down into the new location
-        board_place_piece(&t->board, new_falling);
-        t->falling_piece = new_falling;
+        board_place_piece(&state->board, new_falling);
+        state->falling_piece = new_falling;
         return 1;
     }
 }
+
 
 
 /*
@@ -485,30 +491,32 @@ static int _move_piece(tetris_t *t, int dx, int dy) {
  * back where it was, otherwise 1 is returned and the piece is placed in the
  * new location
  */
-static int _rotate_piece(tetris_t *t, int rotation) {
+int tetris_rotate_piece(tetris_state *state, int rotation,
+        int allow_wall_kicks) {
+
     piece_t falling;
     piece_t new_falling;
     int8_t dx, dy;
 
-    falling = t->falling_piece;
+    falling = state->falling_piece;
 
     // first, remove the piece from the board where it is
-    board_remove_piece(&t->board, falling);
+    board_remove_piece(&state->board, falling);
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
     piece_rotate(&new_falling, rotation);
 
-    if (falling.piece_idx == PIECE_O || _lock_controls(t)) {
+    if (falling.piece_idx == PIECE_O || !allow_wall_kicks) {
         // either this piece cannot be rotated, so we don't loop, or the
         // controls are locked (to prevent spamming spin), so we don't allow
         // wall kicks
 
         // check to see if there would be any collisions here
-        if (!board_piece_collides(&t->board, new_falling)) {
+        if (!board_piece_collides(&state->board, new_falling)) {
             // the piece can now be moved down into the new location
-            board_place_piece(&t->board, new_falling);
-            t->falling_piece = new_falling;
+            board_place_piece(&state->board, new_falling);
+            state->falling_piece = new_falling;
             return 1;
         }
     }
@@ -519,10 +527,10 @@ static int _rotate_piece(tetris_t *t, int rotation) {
             piece_move(&new_falling, dx, dy);
 
             // check to see if there would be any collisions here
-            if (!board_piece_collides(&t->board, new_falling)) {
+            if (!board_piece_collides(&state->board, new_falling)) {
                 // the piece can now be moved down into the new location
-                board_place_piece(&t->board, new_falling);
-                t->falling_piece = new_falling;
+                board_place_piece(&state->board, new_falling);
+                state->falling_piece = new_falling;
                 return 1;
             }
 
@@ -533,8 +541,57 @@ static int _rotate_piece(tetris_t *t, int rotation) {
 
     // there were no suitable locations for the piece, so put it back where it
     // was
-    board_place_piece(&t->board, falling);
+    board_place_piece(&state->board, falling);
     return 0;
+
+}
+
+
+static int _rotate_piece(tetris_t *t, int rotation) {
+    return tetris_rotate_piece(&t->game_state, rotation,
+            !_lock_controls(t));
+}
+
+
+
+
+int tetris_clear_lines(tetris_state *state) {
+    // check the only rows that contain possibly modified tiles
+    int32_t bot = MAX(state->falling_piece.board_y, 0);
+    int32_t top = MIN(state->falling_piece.board_y + PIECE_BB_H,
+            state->board.height);
+
+    int32_t r, dst_r;
+
+    int32_t num_rows_cleared = 0;
+
+    for (r = bot, dst_r = bot; r < top; r++) {
+        if (board_row_full(&state->board, r)) {
+            num_rows_cleared++;
+        }
+        else {
+            dst_r++;
+        }
+
+        if (dst_r != r) {
+            board_copy_row(&state->board, dst_r, r);
+        }
+    }
+
+    if (num_rows_cleared > 0) {
+        // topple down remaining rows
+        for (; r < state->board.height; r++, dst_r++) {
+            board_copy_row(&state->board, dst_r, r);
+        }
+
+        // clear the top most rows which were already toppled but
+        // not overwritten
+        for (; dst_r < state->board.height; dst_r++) {
+            board_clear_row(&state->board, dst_r);
+        }
+    }
+
+    return num_rows_cleared;
 }
 
 
@@ -555,7 +612,7 @@ static int _advance(tetris_t *t) {
     // not want to initialize the new piece or move it down
     while (t->state == PLAY) {
 
-        falling = t->falling_piece;
+        falling = t->game_state.falling_piece;
 
         // the falling piece must always have been initialized before this point
         TETRIS_ASSERT(falling.piece_idx != EMPTY);
@@ -563,17 +620,17 @@ static int _advance(tetris_t *t) {
         // now to try to move the piece down
 
         // first, remove the piece from the board where it is
-        board_remove_piece(&t->board, falling);
+        board_remove_piece(&t->game_state.board, falling);
 
         // and now advance the piece downward
         piece_t new_falling = falling;
         piece_move(&new_falling, 0, -1);
 
         // check to see if there would be any collisions here
-        if (board_piece_collides(&t->board, new_falling)) {
+        if (board_piece_collides(&t->game_state.board, new_falling)) {
             // then the piece cannot move down, it is now stuck where it was.
             // First, put the old piece back, then unset the falling piece
-            int placed = board_place_piece(&t->board, falling);
+            int placed = board_place_piece(&t->game_state.board, falling);
 
             if (t->fp_data.falling_status & HIT_GROUND_LAST_FRAME) {
                 // if the piece spend two successive frames hitting the ground,
@@ -608,8 +665,8 @@ static int _advance(tetris_t *t) {
         }
         else {
             // otherwise, the piece can now be moved down into the new location
-            board_place_piece(&t->board, new_falling);
-            t->falling_piece = new_falling;
+            board_place_piece(&t->game_state.board, new_falling);
+            t->game_state.falling_piece = new_falling;
 
             // unset hit ground last frame flag, in case it was set and the
             // piece was subsequently moved off the platform
@@ -645,8 +702,9 @@ static void _piece_placed(tetris_t *t) {
     _init_clear_animator(&c_anim_tmp);
 
     // check the only rows that contain possibly modified tiles
-    int32_t bot = MAX(t->falling_piece.board_y, 0);
-    int32_t top = MIN(t->falling_piece.board_y + PIECE_BB_H, t->board.height);
+    int32_t bot = MAX(t->game_state.falling_piece.board_y, 0);
+    int32_t top = MIN(t->game_state.falling_piece.board_y + PIECE_BB_H,
+            t->game_state.board.height);
 
     int32_t r;
 
@@ -656,17 +714,17 @@ static void _piece_placed(tetris_t *t) {
     // bot (snap the bottom down to the 4th to last row if it is any higher,
     // so that every row in the bitvector will correspond to a real row on the
     // board)
-    int32_t anim_bot = MIN(bot, t->board.height - PIECE_BB_H - 1);
+    int32_t anim_bot = MIN(bot, t->game_state.board.height - PIECE_BB_H - 1);
     canim_set_start_row(&c_anim_tmp, anim_bot);
 
     for (r = bot; r < top; r++) {
-        if (board_row_full(&t->board, r)) {
+        if (board_row_full(&t->game_state.board, r)) {
             canim_set_row_idx(&c_anim_tmp, r - anim_bot);
             num_rows_cleared++;
         }
     }
 
-    _scorer_count_move(t, num_rows_cleared, t->falling_piece.piece_idx);
+    _scorer_count_move(t, num_rows_cleared, t->game_state.falling_piece.piece_idx);
 
     if (num_rows_cleared > 0) {
         // if any rows were found to be clear, we have to do the clear animation!
@@ -677,7 +735,7 @@ static void _piece_placed(tetris_t *t) {
     }
     else {
         // otherwise fetch the next piece and place it at the top of the board
-        _get_next_falling_piece(t);
+        tetris_get_next_falling_piece(&t->game_state);
     }
 
 
@@ -730,12 +788,12 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     if (ev->action == GLFW_PRESS) {
         switch (ev->key) {
             case GLFW_KEY_LEFT:
-                res = _move_piece(t, -1, 0);
+                res = tetris_move_piece(&t->game_state, -1, 0);
                 type = MOVE_TRANSLATE;
                 t->ctrl.keypress_flags |= LEFT_KEY;
                 break;
             case GLFW_KEY_RIGHT:
-                res = _move_piece(t, 1, 0);
+                res = tetris_move_piece(&t->game_state, 1, 0);
                 type = MOVE_TRANSLATE;
                 t->ctrl.keypress_flags |= RIGHT_KEY;
                 break;
@@ -817,7 +875,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
 
     if (is_keycb_ts && (c->keypress_flags & LEFT_KEY)) {
         if (c->l_hold_count == REPEAT_TIMER) {
-            res |= _move_piece(t, -1, 0);
+            res |= tetris_move_piece(&t->game_state, -1, 0);
         }
         else {
             c->l_hold_count++;
@@ -825,7 +883,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
     }
     if (is_keycb_ts && (c->keypress_flags & RIGHT_KEY)) {
         if (c->r_hold_count == REPEAT_TIMER) {
-            res |= _move_piece(t, 1, 0);
+            res |= tetris_move_piece(&t->game_state, 1, 0);
         }
         else {
             c->r_hold_count++;
@@ -835,7 +893,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
         // only do this callback on exclusively minor time steps, since the
         // tile is moved down in major time steps by _advance
         if (!_is_major_time_step(t)) {
-            res |= _move_piece(t, 0, -1);
+            res |= tetris_move_piece(&t->game_state, 0, -1);
         }
     }
 
@@ -891,8 +949,8 @@ void tetris_step(tetris_t *t) {
                 }
 
                 // check to see if min y has increased
-                if (t->fp_data.min_h > t->falling_piece.board_y) {
-                    t->fp_data.min_h = t->falling_piece.board_y;
+                if (t->fp_data.min_h > t->game_state.falling_piece.board_y) {
+                    t->fp_data.min_h = t->game_state.falling_piece.board_y;
                     t->fp_data.min_h_inc_time = 0;
                 }
                 else {

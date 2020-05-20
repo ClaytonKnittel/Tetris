@@ -98,6 +98,10 @@ int main(int argc, char *argv[]) {
         glfwPollEvents();
     }
 
+    if (ai != NULL) {
+        ai_destroy(ai);
+    }
+
     game_destroy(&g);
     font_destroy(&font);
     gl_exit(&c);

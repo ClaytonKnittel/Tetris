@@ -25,6 +25,80 @@
 
 
 
+
+
+typedef struct tetris_state {
+
+    // align piece_queue to dword
+    char __attribute__((aligned(8))) __pad[0];
+
+    /*
+     * queue of next 14 pieces (2 sets of 7)
+     *
+     * we use the Random Generator algorithm to assign pieces, which randomly
+     * permutes the list of 7 pieces over and over
+     *
+     * we need 2 of these groups of 7 to be calculated at all times, so piece
+     * lookahead can go beyond just the next piece
+     */
+    uint8_t piece_queue[2 * N_PIECES];
+    uint16_t queue_idx;
+
+    // piece currently being controlled by player
+    piece_t falling_piece;
+
+    // graphics object used to draw the game to the screen and to check if
+    // tiles are empty or filled
+    board_t board;
+
+} tetris_state;
+
+
+// returns 1 if the current falling piece could stick wherever it is, 0
+// otherwise
+int tetris_fp_can_stick(tetris_state *state);
+
+
+
+/*
+ * fetches next piece from the piece queue and places the piece at the top of
+ * the board, to begin falling
+ */
+void tetris_get_next_falling_piece(tetris_state *state);
+
+
+/*
+ * move the falling piece by dx, dy. If successful, the piece's location is
+ * updated and 1 is returned, otherwise it is left where it was and 0 is
+ * returned
+ */
+int tetris_move_piece(tetris_state *state, int dx, int dy);
+
+
+/*
+ * rotate the following piece either clockwise or counterclockwise, depending
+ * on the parameter rotation. If unsuccessful, we attempt to place the piece
+ * in up to 4 more locations offset from where it would naturally end up,
+ * which depend on the current orientation and rotation
+ *
+ * If all attempts to place the piece fail, 0 is returned and the piece is put
+ * back where it was, otherwise 1 is returned and the piece is placed in the
+ * new location
+ */
+int tetris_rotate_piece(tetris_state *state, int rotation,
+        int allow_wall_kicks);
+
+
+/*
+ * checks the current state to see if there are any lines to be cleared, and if
+ * so, clears them and returns the number of lines cleared
+ */
+int tetris_clear_lines(tetris_state *state);
+
+
+
+
+
 /*
  * falling piece flags
  */
@@ -295,8 +369,6 @@ typedef struct piece_hold {
 
 
 typedef struct tetris {
-    // piece currently being controlled by player
-    piece_t falling_piece;
 
     // for interfacing user input with the game mechanics
     controller ctrl;
@@ -326,24 +398,7 @@ typedef struct tetris {
      */
     uint8_t state;
 
-    // align piece_queue to dword
-    char __attribute__((aligned(8))) __pad[0];
-
-    /*
-     * queue of next 14 pieces (2 sets of 7)
-     *
-     * we use the Random Generator algorithm to assign pieces, which randomly
-     * permutes the list of 7 pieces over and over
-     *
-     * we need 2 of these groups of 7 to be calculated at all times, so piece
-     * lookahead can go beyond just the next piece
-     */
-    uint8_t piece_queue[2 * N_PIECES];
-    uint16_t queue_idx;
-
-    // graphics object used to draw the game to the screen and to check if
-    // tiles are empty or filled
-    board_t board;
+    tetris_state game_state;
 
     // time counter, starts at 0 and is incremented every frame
     uint64_t time;
@@ -374,7 +429,7 @@ void tetris_init(tetris_t *t, gl_context *context, float x, float y,
 
 
 static void tetris_destroy(tetris_t *t) {
-    board_destroy(&t->board);
+    board_destroy(&t->game_state.board);
 }
 
 
@@ -398,7 +453,7 @@ static int is_fast_falling(tetris_t *t) {
  * returns a pointer to the beginning of the up-next queue of pieces
  */
 static uint8_t* tetris_get_up_next(tetris_t *t) {
-    return &t->piece_queue[t->queue_idx];
+    return &t->game_state.piece_queue[t->game_state.queue_idx];
 }
 
 

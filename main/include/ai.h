@@ -7,7 +7,7 @@
 #include <game.h>
 
 
-#define NUM_AIS 1
+#define NUM_AIS 2
 
 
 struct ai {
@@ -24,15 +24,7 @@ struct ai {
 extern struct ai builtin_ais[NUM_AIS];
 
 
-static struct ai * fetch_ai(char *name) {
-    for (int i = 0; i < NUM_AIS; i++) {
-        if (strcmp(builtin_ais[i].name, name) == 0) {
-            return &builtin_ais[i];
-        }
-    }
-    return NULL;
-}
-
+struct ai * fetch_ai(char *name);
 
 int ai_init(struct ai * ai, game_t *g);
 

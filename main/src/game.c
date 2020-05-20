@@ -121,14 +121,14 @@ void game_tick(game_t *g) {
 
     if (g->flags & MANUAL_CONTROL) {
         TETRIS_ASSERT(g->ctrl_callback != NULL);
-        g->ctrl_callback(g, &g->t.board, g->ctrl_arg);
+        g->ctrl_callback(g, &g->t.game_state.board, g->ctrl_arg);
     }
 }
 
 void game_render(game_t *g) {
     int flags = g->flags;
 
-    board_draw(&g->t.board);
+    board_draw(&g->t.game_state.board);
     if (flags & SHOW_FRAME) {
         frame_draw(&g->f);
     }
