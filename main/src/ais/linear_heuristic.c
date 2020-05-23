@@ -1,4 +1,5 @@
 
+#include <math.h>
 #include <stdlib.h>
 
 #include <util.h>
@@ -19,6 +20,24 @@ lha_t * linear_heuristic_agent_init() {
 
 void linear_heuristic_agent_destroy(lha_t *a) {
     free(a);
+}
+
+
+static void print_board(tetris_state * s, piece_t fp) {
+    board_t * board = &s->board;
+
+    for (int y = TETRIS_HEIGHT - 1; y >= 0; y--) {
+        for (int x = 0; x < TETRIS_WIDTH; x++) {
+            if (piece_contains(fp, x, y)) {
+                printf("X ");
+            }
+            else {
+                uint8_t tile = board_get_tile(board, x, y);
+                printf("%c ", (tile ? 'O' : '.'));
+            }
+        }
+        printf("\n");
+    }
 }
 
 
@@ -54,7 +73,7 @@ typedef struct state_node {
     int action;
 
     // singly linked list of possible falling spots
-    struct state * falling_spots;
+    struct state_node * next;
 } state_node;
 
 
@@ -80,7 +99,7 @@ typedef struct state {
     // maintain singly-linked list of states which are possible landing
     // locations (if this is NULL, then it is not in the list, and we mark the
     // end of the list with LIST_END instead of NULL)
-    struct state *next;
+    struct state_node * falling_spots;
 
     // pointer to game state
     tetris_state * game_state;
@@ -98,9 +117,40 @@ static state_node * __find_state_node(state_t *s, piece_t p) {
     // find bottom left corner of piece, which must be in bounds of the the board
     piece_bottom_left_corner(p, &x, &y);
 
-    uint32_t idx = (y * TETRIS_WIDTH + x) * 4 + p.orientation;
+    uint32_t idx = (y * TETRIS_WIDTH + x) * N_PIECE_ORIENTATIONS + p.orientation;
 
     return &s->m[idx];
+}
+
+
+
+static void __try_decrease(state_t * s, piece_t new_fp, uint64_t new_time) {
+
+    state_node * node = __find_state_node(s, new_fp);
+
+    if (node->node.key == INFTY) {
+        HEAP_NODE_SET(&node->node, new_time);
+        heap_insert(&s->h, &node->node);
+
+        node->falling_piece = new_fp;
+    }
+    else if (node->node.key > new_time) {
+        heap_decrease_key(&s->h, &node->node, new_time);
+    }
+}
+
+
+/*
+ * append node to list of possible falling spots if it is not already in there,
+ * otherwise do nothing
+ */
+static void __try_falling_spot_append(state_t * s, state_node * node) {
+    if (node->next == NULL) {
+        // only add node to the list if it's not already in the list
+        state_node * head = s->falling_spots;
+        node->next = head;
+        s->falling_spots = node;
+    }
 }
 
 
@@ -115,9 +165,8 @@ static void _run_dijkstra(state_t *s) {
     while ((node = __heap_node_to_state_node(heap_extract_min(&s->h))) !=
             NULL) {
         fp = node->falling_piece;
-        print_piece(fp);
         time = (uint64_t) node->node.key;
-        printf("Extracted %p %d (%llx)\n", node, fp.piece_idx, time - s->t0);
+        //printf("Extracted %p %d (%f)\n", node, fp.piece_idx, (time - s->t0) / 60.f);
 
         // find all possible successors of this node
 
@@ -129,50 +178,36 @@ static void _run_dijkstra(state_t *s) {
         // press left
         new_fp = fp;
         if (tetris_move_piece_transient(s->game_state, &new_fp, -1, 0)) {
-
-            state_node * left_node = __find_state_node(s, new_fp);
-
-            printf("can move left %p (%llx)\n", left_node, left_node->node.key);
-
-            if (left_node->node.key == INFTY) {
-                printf("add\n");
-                HEAP_NODE_SET(&left_node->node, next_input_time);
-                heap_insert(&s->h, &left_node->node);
-
-                left_node->falling_piece = new_fp;
-            }
-            else if (left_node->node.key > next_input_time) {
-                printf("dec %llx -> %llx\n", left_node->node.key, next_input_time);
-                heap_decrease_key(&s->h, &left_node->node, next_input_time);
-            }
-            print_piece(new_fp);
-
+            __try_decrease(s, new_fp, next_input_time);
         }
 
         // press right
         new_fp = fp;
         if (tetris_move_piece_transient(s->game_state, &new_fp, 1, 0)) {
-
-            state_node * right_node = __find_state_node(s, new_fp);
-
-            printf("can move right %p (%llx)\n", right_node, right_node->node.key);
-
-            if (right_node->node.key == INFTY) {
-                printf("add\n");
-                HEAP_NODE_SET(&right_node->node, next_input_time);
-                heap_insert(&s->h, &right_node->node);
-
-                right_node->falling_piece = new_fp;
-            }
-            else if (right_node->node.key > next_input_time) {
-                printf("dec %llx -> %llx\n", right_node->node.key, next_input_time);
-                heap_decrease_key(&s->h, &right_node->node, next_input_time);
-            }
-            print_piece(new_fp);
-
+            __try_decrease(s, new_fp, next_input_time);
         }
 
-        print_heap(&s->h);
+        // wait for it to fall
+        new_fp = fp;
+        tetris_state * game_state = s->game_state;
+        uint64_t next_major_ts = time +
+            (uint64_t) ceil((game_state->major_tick_count) -
+                    game_state->major_tick_time);
+        if (tetris_move_piece_transient(s->game_state, &new_fp, 0, -1)) {
+            __try_decrease(s, new_fp, next_major_ts);
+        }
+        else {
+            // this piece can stick
+            state_node * falling_spot = __find_state_node(s, new_fp);
+            __try_falling_spot_append(s, falling_spot);
+        }
+
+    }
+
+
+    for (state_node * fs = s->falling_spots; fs != LIST_END; fs = fs->next) {
+        print_piece(fs->falling_piece);
+        print_board(s->game_state, fs->falling_piece);
     }
     printf("\n");
 }
@@ -194,11 +229,14 @@ static void _find_all_spots(lha_t *a, tetris_state *s) {
 
     state.game_state = s;
 
+    // list of falling spots starts off empty
+    state.falling_spots = LIST_END;
+
     // number of possible states (num possible positions * num unique
     // orientations). There will be some unused space since you can't actually
     // have a piece with bottom left x-coord = width - 1, but we won't worry
     // about that for simplicity
-    uint64_t board_size = TETRIS_WIDTH * TETRIS_HEIGHT * 4;
+    uint64_t board_size = TETRIS_WIDTH * TETRIS_HEIGHT * N_PIECE_ORIENTATIONS;
 
     state.m = (state_node *) calloc(board_size, sizeof(state_node));
 
@@ -238,14 +276,6 @@ int linear_heuristic_go(lha_t *a, tetris_state *s) {
         a->prev_falling_piece = fp;
 
         _find_all_spots(a, s);
-
-        /*for (int y = TETRIS_HEIGHT - 1; y >= 0; y--) {
-            for (int x = 0; x < TETRIS_WIDTH; x++) {
-                uint8_t tile = board_get_tile(&s->board, x, y);
-                printf("%c ", (tile ? 'X' : '.'));
-            }
-            printf("\n");
-        }*/
     }
 
     return 1;

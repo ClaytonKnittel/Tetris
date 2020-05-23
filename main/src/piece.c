@@ -522,6 +522,20 @@ void piece_bottom_left_corner(piece_t p, int8_t *res_x, int8_t *res_y) {
 }
 
 
+/*
+ * returns 1 if the given piece contains the coordinate pair (x, y), otherwise
+ * returns 0
+ */
+int piece_contains(piece_t p, int8_t x, int8_t y) {
+    __define_each_tile(p, p.piece_idx, p.orientation, p.board_x, p.board_y);
+
+    return (p_x1 == x && p_y1 == y) ||
+           (p_x2 == x && p_y2 == y) ||
+           (p_x3 == x && p_y3 == y) ||
+           (p_x4 == x && p_y4 == y);
+}
+
+
 
 void print_piece(piece_t p) {
     const static char pcs[8]  = { '_', 'I', 'S', 'J', 'T', 'L', 'Z', 'O' };

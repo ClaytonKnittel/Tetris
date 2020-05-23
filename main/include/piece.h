@@ -5,6 +5,8 @@
 
 #define N_PIECES 7
 
+#define N_PIECE_ORIENTATIONS 4
+
 #define ROTATE_CLOCKWISE 1
 #define ROTATE_COUNTERCLOCKWISE -1
 
@@ -376,6 +378,13 @@ int piece_equals(piece_t p1, piece_t p2);
  * the tightest bounding box around the piece
  */
 void piece_bottom_left_corner(piece_t p, int8_t *x, int8_t *y);
+
+
+/*
+ * returns 1 if the given piece contains the coordinate pair (x, y), otherwise
+ * returns 0
+ */
+int piece_contains(piece_t p, int8_t x, int8_t y);
 
 
 void print_piece(piece_t p);
