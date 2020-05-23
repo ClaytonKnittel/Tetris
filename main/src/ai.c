@@ -38,7 +38,7 @@ struct ai * fetch_ai(char *name) {
 static void callback(tetris_t *t, void *arg) {
     struct ai * ai = (struct ai *) arg;
     tetris_state * s = &t->game_state;
-    ai->callback(ai, s);
+    ai->callback(ai->ai_struct_ptr, s);
 }
 
 

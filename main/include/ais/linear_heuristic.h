@@ -4,8 +4,22 @@
 #include <board.h>
 #include <piece.h>
 
+
+struct lha_state {
+    // pointer to data region which is to be freed when exiting an lha_state
+    void * to_free;
+
+    // list of actions to be taken, along with the times to take those actions
+    struct state_node * action_list;
+};
+
+
 typedef struct linear_heuristic_agent {
-    piece_t prev_falling_piece;
+
+    // internal state of AI, which is updated whenever a new falling piece is
+    // grabbed or the path of a falling piece is interrupted/corrupted to where
+    // the next action that should be performed is no longer clear
+    struct lha_state __int_state;
 } lha_t;
 
 

@@ -17,7 +17,7 @@ LFLAGS=-L$(LDIR)
 #opengl libraries
 GLLIBS=-lglew.2.1 -lglfw.3.3 -framework OpenGL
 
-DEBUG=0
+DEBUG=1
 
 ifeq ($(DEBUG), 0)
 CFLAGS=-O3 -Wall -Wno-unused-function -MMD -MP
