@@ -87,7 +87,7 @@ void game_destroy(game_t *g) {
 }
 
 void game_set_ctrl_callback(game_t *g,
-        void (*ctrl_cb)(game_t*, board_t*, void*),
+        void (*ctrl_cb)(tetris_t*, void*),
         void *ctrl_arg) {
 
     // the callback is only called when manual controls are enabled
@@ -121,7 +121,7 @@ void game_tick(game_t *g) {
 
     if (g->flags & MANUAL_CONTROL) {
         TETRIS_ASSERT(g->ctrl_callback != NULL);
-        g->ctrl_callback(g, &g->t.game_state.board, g->ctrl_arg);
+        g->ctrl_callback(&g->t, g->ctrl_arg);
     }
 }
 

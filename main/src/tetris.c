@@ -13,6 +13,7 @@
 // forward declarations
 static void _switch_state(tetris_t *t, int state);
 static void _piece_placed(tetris_t *t);
+static void _tick(tetris_state *s);
 
 
 
@@ -336,26 +337,26 @@ void tetris_init(tetris_t *t, gl_context *context, float x, float y,
     key_event_queue_init(&t->kq);
 
     // initialize time to 0
-    t->time = 0LU;
+    t->game_state.time = 0LU;
 
-    t->major_tick_count = 16.f;
-    t->major_tick_time  = 0.f;
+    t->game_state.major_tick_count = 16.f;
+    t->game_state.major_tick_time  = 0.f;
 
-    t->minor_tick_count = 4.f;
-    t->minor_tick_time  = 0.f;
+    t->game_state.minor_tick_count = 4.f;
+    t->game_state.minor_tick_time  = 0.f;
 
-    t->key_callback_count = DEFAULT_HELD_KEY_PERIOD;
-    t->key_callback_time  = 0.f;
+    t->game_state.key_callback_count = DEFAULT_HELD_KEY_PERIOD;
+    t->game_state.key_callback_time  = 0.f;
 
 }
 
 
 
 void tetris_set_falling_speed(tetris_t *t, double period) {
-    double prev_period = t->major_tick_count;
+    double prev_period = t->game_state.major_tick_count;
     // set time to same percentage of the way through current tick as before
-    t->major_tick_time *= period / prev_period;
-    t->major_tick_count = period;
+    t->game_state.major_tick_time *= period / prev_period;
+    t->game_state.major_tick_count = period;
 }
 
 
@@ -453,13 +454,31 @@ void tetris_get_next_falling_piece(tetris_state *state) {
  * returned
  */
 int tetris_move_piece(tetris_state *state, int dx, int dy) {
-    piece_t falling;
-    piece_t new_falling;
+    int ret;
 
-    falling = state->falling_piece;
+    piece_t falling = state->falling_piece;
 
     // first, remove the piece from the board where it is
     board_remove_piece(&state->board, falling);
+
+    // then do a transient rotation
+    ret = tetris_move_piece_transient(state, &state->falling_piece, dx, dy);
+
+    falling = state->falling_piece;
+    // then place the new falling piece back on the board
+    board_place_piece(&state->board, falling);
+
+    return ret;
+}
+
+
+int tetris_move_piece_transient(tetris_state *state, piece_t *fp,
+        int dx, int dy) {
+
+    piece_t falling;
+    piece_t new_falling;
+
+    falling = *fp;
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
@@ -467,16 +486,16 @@ int tetris_move_piece(tetris_state *state, int dx, int dy) {
 
     // check to see if there would be any collisions here
     if (board_piece_collides(&state->board, new_falling)) {
-        // then the piece cannot move, so put it back
-        board_place_piece(&state->board, falling);
+        // then the piece cannot move
         return 0;
     }
     else {
+
         // otherwise, the piece can now be moved down into the new location
-        board_place_piece(&state->board, new_falling);
-        state->falling_piece = new_falling;
+        *fp = new_falling;
         return 1;
     }
+
 }
 
 
@@ -493,15 +512,34 @@ int tetris_move_piece(tetris_state *state, int dx, int dy) {
  */
 int tetris_rotate_piece(tetris_state *state, int rotation,
         int allow_wall_kicks) {
+    int ret;
+
+    piece_t falling = state->falling_piece;
+
+    // first, remove the piece from the board where it is
+    board_remove_piece(&state->board, falling);
+
+    // then do a transient rotation
+    ret = tetris_rotate_piece_transient(state, &state->falling_piece, rotation,
+            allow_wall_kicks);
+
+    falling = state->falling_piece;
+    // then place the new falling piece back on the board
+    board_place_piece(&state->board, falling);
+
+    return ret;
+}
+
+
+int tetris_rotate_piece_transient(tetris_state *state, piece_t *fp,
+        int rotation, int allow_wall_kicks) {
+
 
     piece_t falling;
     piece_t new_falling;
     int8_t dx, dy;
 
-    falling = state->falling_piece;
-
-    // first, remove the piece from the board where it is
-    board_remove_piece(&state->board, falling);
+    falling = *fp;
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
@@ -514,9 +552,7 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
 
         // check to see if there would be any collisions here
         if (!board_piece_collides(&state->board, new_falling)) {
-            // the piece can now be moved down into the new location
-            board_place_piece(&state->board, new_falling);
-            state->falling_piece = new_falling;
+            *fp = new_falling;
             return 1;
         }
     }
@@ -529,8 +565,7 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
             // check to see if there would be any collisions here
             if (!board_piece_collides(&state->board, new_falling)) {
                 // the piece can now be moved down into the new location
-                board_place_piece(&state->board, new_falling);
-                state->falling_piece = new_falling;
+                *fp = new_falling;
                 return 1;
             }
 
@@ -539,9 +574,7 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
         }
     }
 
-    // there were no suitable locations for the piece, so put it back where it
-    // was
-    board_place_piece(&state->board, falling);
+    // there were no suitable locations for the piece
     return 0;
 
 }
@@ -592,6 +625,28 @@ int tetris_clear_lines(tetris_state *state) {
     }
 
     return num_rows_cleared;
+}
+
+
+int tetris_is_major_time_step(tetris_state *s) {
+    return s->major_tick_time < 1;
+}
+
+int tetris_is_minor_time_step(tetris_state *s) {
+    return s->minor_tick_time < 1;
+}
+
+int tetris_is_key_callback_step(tetris_state *s) {
+    return s->key_callback_time < 1;
+}
+
+
+void tetris_advance_to_next_action(tetris_state *s) {
+    do {
+        _tick(s);
+    } while (!tetris_is_major_time_step(s) &&
+             !tetris_is_minor_time_step(s) &&
+             !tetris_is_key_callback_step(s));
 }
 
 
@@ -658,8 +713,9 @@ static int _advance(tetris_t *t) {
                 // artificially advance time forward to
                 // CTRL_HIT_GROUND_LAST_DELAY% of major time step delay before
                 // the next major time step
-                t->major_tick_time += CTRL_HIT_GROUND_LAST_DELAY *
-                    t->major_tick_count;
+                t->game_state.major_tick_time +=
+                    CTRL_HIT_GROUND_LAST_DELAY *
+                    t->game_state.major_tick_count;
                 break;
             }
         }
@@ -842,19 +898,6 @@ static void _handle_event(tetris_t *t, key_event *ev) {
 }
 
 
-
-static int _is_major_time_step(tetris_t *t) {
-    return t->major_tick_time < 1;
-}
-
-static int _is_minor_time_step(tetris_t *t) {
-    return t->minor_tick_time < 1;
-}
-
-static int _is_key_callback_step(tetris_t *t) {
-    return t->key_callback_time < 1;
-}
-
 /*
  * to be called every major time step, handles extra callbacks from held-down
  * keys and management of the controller state
@@ -866,9 +909,9 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
         return;
     }
 
-    int is_major_ts = _is_major_time_step(t);
-    int is_minor_ts = _is_minor_time_step(t);
-    int is_keycb_ts = _is_key_callback_step(t);
+    int is_major_ts = tetris_is_major_time_step(&t->game_state);
+    int is_minor_ts = tetris_is_minor_time_step(&t->game_state);
+    int is_keycb_ts = tetris_is_key_callback_step(&t->game_state);
 
     controller *c = &t->ctrl;
     int res = 0;
@@ -892,7 +935,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
     if ((is_minor_ts && !is_major_ts) && (c->keypress_flags & DOWN_KEY)) {
         // only do this callback on exclusively minor time steps, since the
         // tile is moved down in major time steps by _advance
-        if (!_is_major_time_step(t)) {
+        if (!is_major_ts) {
             res |= tetris_move_piece(&t->game_state, 0, -1);
         }
     }
@@ -905,22 +948,22 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
 }
 
 
-static void _tick(tetris_t *t) {
-    t->time++;
+static void _tick(tetris_state *s) {
+    s->time++;
 
-    t->major_tick_time++;
-    if (t->major_tick_time >= t->major_tick_count) {
-        t->major_tick_time -= t->major_tick_count;
+    s->major_tick_time++;
+    if (s->major_tick_time >= s->major_tick_count) {
+        s->major_tick_time -= s->major_tick_count;
     }
 
-    t->minor_tick_time++;
-    if (t->minor_tick_time >= t->minor_tick_count) {
-        t->minor_tick_time -= t->minor_tick_count;
+    s->minor_tick_time++;
+    if (s->minor_tick_time >= s->minor_tick_count) {
+        s->minor_tick_time -= s->minor_tick_count;
     }
 
-    t->key_callback_time++;
-    if (t->key_callback_time >= t->key_callback_count) {
-        t->key_callback_time -= t->key_callback_count;
+    s->key_callback_time++;
+    if (s->key_callback_time >= s->key_callback_count) {
+        s->key_callback_time -= s->key_callback_count;
     }
 }
 
@@ -938,7 +981,7 @@ void tetris_step(tetris_t *t) {
     switch (t->state) {
         case PLAY:
 
-            if (_is_major_time_step(t)) {
+            if (tetris_is_major_time_step(&t->game_state)) {
                 // advance game state
                 could_advance = _advance(t);
 
@@ -969,7 +1012,7 @@ void tetris_step(tetris_t *t) {
 
         case CLEAR_ANIMATION:
             // clear animation runs on minor time steps
-            if (_is_minor_time_step(t)) {
+            if (tetris_is_minor_time_step(&t->game_state)) {
                 _clear_next_row(t);
 
                 if (_clear_animation_done(t)) {
@@ -982,7 +1025,7 @@ void tetris_step(tetris_t *t) {
             __builtin_unreachable();
     }
 
-    _tick(t);
+    _tick(&t->game_state);
 }
 
 

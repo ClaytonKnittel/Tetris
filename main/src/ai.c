@@ -18,7 +18,7 @@ struct ai builtin_ais[NUM_AIS] = {
     },
     {
         .name = "lh",
-        .callback = (int(*)(void*, board_t*)) &linear_heuristic_go,
+        .callback = (int(*)(void*, tetris_state*)) &linear_heuristic_go,
         .id = LINEAR_HEURISTIC_ID
     }
 };
@@ -35,9 +35,10 @@ struct ai * fetch_ai(char *name) {
 
 
 
-static void callback(game_t *g, board_t *b, void *arg) {
+static void callback(tetris_t *t, void *arg) {
     struct ai * ai = (struct ai *) arg;
-    ai->callback(ai, b);
+    tetris_state * s = &t->game_state;
+    ai->callback(ai, s);
 }
 
 

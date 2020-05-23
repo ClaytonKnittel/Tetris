@@ -51,12 +51,24 @@ typedef struct tetris_state {
     // tiles are empty or filled
     board_t board;
 
+
+    // time counter, starts at 0 and is incremented every frame
+    uint64_t time;
+
+    // frames per step of animation (60 fps, so if major tick count is 60,
+    // then the game advances by one step every second)
+    // a frame is counted if (time / tick_count) 
+    float major_tick_count;
+    float major_tick_time;
+    float minor_tick_count;
+    float minor_tick_time;
+
+    // frames between calls to key callbacks (i.e. how fast a held down key
+    // will be pressed)
+    float key_callback_count;
+    float key_callback_time;
+
 } tetris_state;
-
-
-// returns 1 if the current falling piece could stick wherever it is, 0
-// otherwise
-int tetris_fp_can_stick(tetris_state *state);
 
 
 
@@ -74,6 +86,16 @@ void tetris_get_next_falling_piece(tetris_state *state);
  */
 int tetris_move_piece(tetris_state *state, int dx, int dy);
 
+/*
+ * similar to move_piece, but expects the falling piece to not be on the board,
+ * and does not place the new falling piece on the board
+ *
+ * this method only reads the state of the board, and updates fp to either the
+ * new position if it could successfully move there, or it is not changed
+ */
+int tetris_move_piece_transient(tetris_state *state, piece_t *fp,
+        int dx, int dy);
+
 
 /*
  * rotate the following piece either clockwise or counterclockwise, depending
@@ -90,10 +112,37 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
 
 
 /*
+ * similar to rotate_piece, but expects the falling piece to not be on the
+ * board, and does not place the new falling piece on the board
+ */
+int tetris_rotate_piece_transient(tetris_state *state, piece_t *fp,
+        int rotation, int allow_wall_kicks);
+
+/*
  * checks the current state to see if there are any lines to be cleared, and if
  * so, clears them and returns the number of lines cleared
  */
 int tetris_clear_lines(tetris_state *state);
+
+
+
+
+/*
+ * returns 1 if the tetris state is in a major time step.
+ *
+ * In major time steps, the following actions happen:
+ *  the falling piece tries to move down by one tile
+ */
+int tetris_is_major_time_step(tetris_state *s);
+
+int tetris_is_minor_time_step(tetris_state *s);
+
+int tetris_is_key_callback_step(tetris_state *s);
+
+/*
+ * advances time in tetris state to the next time in which some action happens
+ */
+void tetris_advance_to_next_action(tetris_state *s);
 
 
 
@@ -399,22 +448,6 @@ typedef struct tetris {
     uint8_t state;
 
     tetris_state game_state;
-
-    // time counter, starts at 0 and is incremented every frame
-    uint64_t time;
-
-    // frames per step of animation (60 fps, so if major tick count is 60,
-    // then the game advances by one step every second)
-    // a frame is counted if (time / tick_count) 
-    float major_tick_count;
-    float major_tick_time;
-    float minor_tick_count;
-    float minor_tick_time;
-
-    // frames between calls to key callbacks (i.e. how fast a held down key
-    // will be pressed)
-    float key_callback_count;
-    float key_callback_time;
 
     // align shared data with cache line
     char __attribute__((aligned(64))) __pad2[0];

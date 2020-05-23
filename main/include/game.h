@@ -45,11 +45,9 @@ typedef struct game {
 
     /*
      * if MANUAL_CONTROL is set, this function is to be called each game tick,
-     * with the game as the first argument, the game board as the second and
-     * ctrl_arg as the third
-     * the game argument should only be used to register key presses
+     * with the game as the first argument and ctrl_arg as the second
      */
-    void (*ctrl_callback)(struct game*, board_t*, void*);
+    void (*ctrl_callback)(tetris_t*, void*);
     void *ctrl_arg;
 } game_t;
 
@@ -60,8 +58,7 @@ void game_destroy(game_t *g);
 
 // initializes control callback function to be made each game tick when manual
 // controls are enabled
-void game_set_ctrl_callback(game_t *g, void (*ctrl_cb)(game_t *g, board_t*,
-            void*),
+void game_set_ctrl_callback(game_t *g, void (*ctrl_cb)(tetris_t *t, void*),
         void *ctrl_arg);
 
 

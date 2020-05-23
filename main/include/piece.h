@@ -341,6 +341,45 @@ static void piece_rotate(piece_t *p, int rotation) {
     p->orientation = (p->orientation + rotation) & 0x3;
 }
 
+/*
+ * gives number of unique ways a piece can be oriented
+ */
+static int piece_num_unique_orientations(int piece_idx) {
+    switch (piece_idx) {
+        case PIECE_O:
+            return 1;
+        case PIECE_I:
+        case PIECE_S:
+        case PIECE_Z:
+            return 2;
+        case PIECE_J:
+        case PIECE_T:
+        case PIECE_L:
+            return 4;
+        default:
+            // not a piece!
+            return 0;
+    }
+}
+
+
+/*
+ * returns 1 if the two pieces are equal, meaning they appear in the same spot
+ * on the board, though they may be in different orientations if the pieces
+ * have any sort of rotational symmetry
+ */
+int piece_equals(piece_t p1, piece_t p2);
+
+
+/*
+ * finds the bottom left corner of the piece, i.e. the bottom left corner of
+ * the tightest bounding box around the piece
+ */
+void piece_bottom_left_corner(piece_t p, int8_t *x, int8_t *y);
+
+
+void print_piece(piece_t p);
+
 
 
 #endif /* _PIECE_H */

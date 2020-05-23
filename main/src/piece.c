@@ -1,5 +1,6 @@
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include <piece.h>
 
@@ -401,4 +402,131 @@ const uint32_t displacement_trial_data_I[16] = {
     //        (y)
     0x61000,
 };
+
+
+
+/*
+ * returns 1 if the two pieces are equal, meaning they appear in the same spot
+ * on the board, though they may be in different orientations if the pieces
+ * have any sort of rotational symmetry
+ */
+int piece_equals(piece_t p1, piece_t p2) {
+    uint8_t piece_idx = p1.piece_idx;
+    // two orientations
+    uint8_t o1, o2;
+    // two positions
+    int8_t x1, y1, x2, y2;
+
+    if (piece_idx != p2.piece_idx) {
+        return 0;
+    }
+
+    o1 = p1.orientation;
+    o2 = p2.orientation;
+
+    x1 = p1.board_x;
+    y1 = p1.board_y;
+    x2 = p2.board_x;
+    y2 = p2.board_y;
+
+    switch (piece_idx) {
+        case PIECE_O:
+            // this one is easy, the orientations have no affect on the piece,
+            // so we only need to compare coordinates
+            break;
+        case PIECE_I:
+        case PIECE_S:
+        case PIECE_Z:
+            // for I, S, and Z tetrominos, the even and odd rotations are
+            // symmetric, so the rotations must have the same parity if the
+            // pieces are in the same place
+            if ((o1 ^ o2) & 1) {
+                // different parity
+                return 0;
+            }
+
+            // to adjust for the different location of the piece in orientation
+            // 0 vs 2, we add 1 to the y coordinate when in orientation 2
+            // similarly with 1 vs 3, we add 1 to the x coordinate when in
+            // orientation 3
+            x1 += (o1 == 3);
+            y1 += (o1 == 2);
+            x2 += (o2 == 3);
+            y2 += (o2 == 2);
+
+            // now the two pieces are in the same position only if their
+            // coordinates are the same
+            break;
+        case PIECE_J:
+        case PIECE_T:
+        case PIECE_L:
+            // for J, T, and L tetrominos, the orientations are all unique, so
+            // we just need to compare orientations, and if those match, we
+            // move on to compare their positions
+            if (o1 != o2) {
+                // different orientations
+                return 0;
+            }
+            break;
+        default:
+            // invalid piece index!
+            return 0;
+    }
+
+    return (x1 == x2) && (y1 == y2);
+}
+
+/*
+ * finds the bottom left corner of the piece, i.e. the bottom left corner of
+ * the tightest bounding box around the piece
+ */
+void piece_bottom_left_corner(piece_t p, int8_t *res_x, int8_t *res_y) {
+    uint8_t piece_idx = p.piece_idx;
+    uint8_t o;
+    int8_t x, y;
+
+    o = p.orientation;
+    x = p.board_x;
+    y = p.board_y;
+
+    switch (piece_idx) {
+        case PIECE_O:
+            x++;
+            y++;
+            break;
+        case PIECE_I:
+            // for even orientations, y is shifted up by at least one (2 if
+            // o == 0)
+            // for odd orientations, x is shifted up by at least one (2 if
+            // o == 1)
+            x += ( o & 1) + (o == 1);
+            y += (~o & 1) + (o == 0);
+            break;
+        case PIECE_S:
+        case PIECE_J:
+        case PIECE_T:
+        case PIECE_L:
+        case PIECE_Z:
+            // in orientation 0, y is shifted up by 1
+            // in orientation 1, x is shifted up by 1
+            x += (o == 1);
+            y += (o == 0);
+            break;
+        default:
+            // invalid piece index!
+            return;
+    }
+
+    *res_x = x;
+    *res_y = y;
+}
+
+
+
+void print_piece(piece_t p) {
+    const static char pcs[8]  = { '_', 'I', 'S', 'J', 'T', 'L', 'Z', 'O' };
+    const static char dirs[4] = { 'N', 'E', 'S', 'W' };
+    printf("PIECE_%c: (%d, %d) %c\n", pcs[p.piece_idx], p.board_x, p.board_y, dirs[p.orientation]);
+}
+
 

@@ -27,6 +27,14 @@ static float int_to_float(uint32_t i) {
     (((a) + ((align) - 1)) & ~((align) - 1))
 
 
+// rounds up a to nearest multiple of mod
+#define ROUND_UP(a, mod) \
+    ((((a) + ((mod) - 1)) / (mod)) * (mod))
+
+#define ROUND_DOWN(a, mod) \
+    (((a) / (mod)) * (mod))
+
+
 static GLenum glCheckError_(const char *file, int line)
 {
     GLenum errorCode;
