@@ -240,6 +240,9 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
 void tetris_init(tetris_t *t, gl_context *context, float x, float y,
         float screen_width, float screen_height) {
 
+    tetris_state_init(&t->game_state, context, x, y, screen_width,
+            screen_height);
+
     _init_controller(&t->ctrl);
 
     _init_scorer(&t->scorer);
