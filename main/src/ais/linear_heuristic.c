@@ -52,7 +52,7 @@ static void print_board(tetris_state * s) {
 // goal of AI is to maximize this value
 static float heuristic(tetris_state *s) {
     piece_t fp = s->falling_piece;
-    return -((float) fp.board_y);
+    return -((float) fp.board_y) + ((float) fp.board_x) / 10.f;
 }
 
 
@@ -64,6 +64,10 @@ static float heuristic(tetris_state *s) {
 #define ROTATE_C  0x8
 // rotate counterclockwise
 #define ROTATE_CC 0x10
+
+// wait until the falling piece on the board is no longer equal to the falling
+// piece of this node
+#define WAIT      0x20
 
 #define INFTY 0x7fffffffffffffffL
 
@@ -263,13 +267,13 @@ static void _run_dijkstra(state_t *s) {
         // wait for it to fall
         tetris_state_shallow_copy(&new_state, game_state);
         // advance game until the piece drops
-        tetris_advance_until_drop_transient(&new_state);
-        __try_decrease(s, &new_state, parent_idx, GO_DOWN);
-        /*else {
+        int ret = tetris_advance_until_drop_transient(&new_state);
+        __try_decrease(s, &new_state, parent_idx, WAIT);
+        if (ret == 0) {
             // this piece can stick
             state_node * falling_spot = __find_state_node(s, &new_state);
             __try_falling_spot_append(s, falling_spot);
-        }*/
+        }
 
     }
 
@@ -287,10 +291,19 @@ static void _run_dijkstra(state_t *s) {
 state_node * _construct_path_to(state_t *s, state_node *node) {
     
     state_node * prev = NULL;
+    // the last action is always a wait, since we have to let the piece stick
+    // into place
+    int prev_action = WAIT;
 
     while (1) {
         node->next = prev;
         prev = node;
+
+        // action is now the action needed to be taken to get from this node
+        // to the next node, not the action to get here from the previous
+        int next_action = node->action;
+        node->action = prev_action;
+        prev_action = next_action;
 
         int32_t parent_idx = node->parent_idx;
         if (parent_idx == -1) {
@@ -313,9 +326,6 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
     float max_h = -INFINITY;
 
     for (state_node * fs = s->falling_spots; fs != LIST_END; fs = fs->next) {
-        print_board(&fs->game_state);
-        printf("\n");
-
         float h = heuristic(&fs->game_state);
 
         if (h > max_h) {
@@ -332,12 +342,33 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
 
     a->__int_state.action_list = path;
 
-    printf("Path:\n");
+    /*printf("Path:\n");
     for (state_node * fs = path; fs != NULL; fs = fs->next) {
         printf("t = %llu\n", fs->time);
+        switch (fs->action) {
+            case GO_LEFT:
+                printf("go left\n");
+                break;
+            case GO_RIGHT:
+                printf("go right\n");
+                break;
+            case GO_DOWN:
+                printf("go down\n");
+                break;
+            case ROTATE_C:
+                printf("rotate clockwise\n");
+                break;
+            case ROTATE_CC:
+                printf("rotate counterclockwise\n");
+                break;
+            case WAIT:
+                printf("wait\n");
+                break;
+        }
         print_board(&fs->game_state);
         printf("\n");
-    }
+    }*/
+
 }
 
 
@@ -414,11 +445,9 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
  */
 int _try_move(state_node * action, tetris_state *s) {
 
-    printf("Trying %llu\n"
-           "      (%llu)\n", action->time, s->time);
-
     if (action->time <= s->time) {
         // time to perform the action
+        int ret = 1;
 
         switch (action->action) {
             case GO_LEFT:
@@ -436,8 +465,17 @@ int _try_move(state_node * action, tetris_state *s) {
             case ROTATE_CC:
                 tetris_rotate_piece(s, ROTATE_COUNTERCLOCKWISE, 1);
                 break;
+            case WAIT:
+                if (piece_equals(action->game_state.falling_piece,
+                            s->falling_piece)) {
+                    // wait until the falling pieces are different
+                    ret = 0;
+                }
+                break;
+            default:
+                abort();
         }
-        return 1;
+        return ret;
     }
     return 0;
 }
@@ -457,7 +495,10 @@ int linear_heuristic_go(lha_t *a, tetris_state *s) {
 
         next_action = a->__int_state.action_list;
         if (next_action == NULL) {
-            free(a->__int_state.to_free);
+            if (a->__int_state.to_free != NULL) {
+                free(a->__int_state.to_free);
+                a->__int_state.to_free = NULL;
+            }
             continue;
         }
 
@@ -465,6 +506,8 @@ int linear_heuristic_go(lha_t *a, tetris_state *s) {
     }
 
     if (next_action != NULL && _try_move(next_action, s)) {
+        // TODO assert piece position
+
         // remove action from the action list
         a->__int_state.action_list = next_action->next;
 
