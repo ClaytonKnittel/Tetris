@@ -9,6 +9,12 @@
 #include <tetris_state.h>
 #include <ai.h>
 #include <ais/linear_heuristic.h>
+#include <tutil.h>
+
+
+// number of rows to add to the top of the board to allow for pieces that are
+// rotated off the top of the screen or something
+#define CEIL_BUFFER 2
 
 
 
@@ -130,8 +136,11 @@ static uint32_t _find_idx(tetris_state * game_state) {
     // board
     piece_bottom_left_corner(p, &x, &y);
 
+    TETRIS_ASSERT(x < TETRIS_WIDTH && y < TETRIS_HEIGHT + CEIL_BUFFER);
+
     uint32_t idx =
         (y * TETRIS_WIDTH + x) * N_PIECE_ORIENTATIONS + p.orientation;
+
     return idx;
 }
 
@@ -203,11 +212,6 @@ static void _run_dijkstra(state_t *s) {
 
         // find all possible successors of this node
 
-        // next time that move can be made must be on a multiple of
-        // AI_INPUT_DELAY
-        uint64_t next_input_time = ROUND_UP(time + 1, AI_INPUT_DELAY);
-
-
         // KEYBOARD INPUTS:
 
         // translations:
@@ -216,7 +220,7 @@ static void _run_dijkstra(state_t *s) {
         if (tetris_move_piece_transient(&new_state, -1, 0)) {
             // advance game by input delay ticks
             uint64_t adv = AI_INPUT_DELAY;
-            if (tetris_advance_by(&new_state, &adv) != 0) {
+            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
                 // could not advance because either the game ended or 
             }
             __try_decrease(s, &new_state, parent_idx, GO_LEFT);
@@ -227,7 +231,7 @@ static void _run_dijkstra(state_t *s) {
         if (tetris_move_piece_transient(&new_state, 1, 0)) {
             // advance game by input delay ticks
             uint64_t adv = AI_INPUT_DELAY;
-            if (tetris_advance_by(&new_state, &adv) != 0) {
+            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
                 // could not advance because either the game ended or 
             }
             __try_decrease(s, &new_state, parent_idx, GO_RIGHT);
@@ -238,7 +242,7 @@ static void _run_dijkstra(state_t *s) {
         if (tetris_rotate_piece_transient(&new_state, ROTATE_CLOCKWISE, 1)) {
             // advance game by input delay ticks
             uint64_t adv = AI_INPUT_DELAY;
-            if (tetris_advance_by(&new_state, &adv) != 0) {
+            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
                 // could not advance because either the game ended or 
             }
             __try_decrease(s, &new_state, parent_idx, ROTATE_C);
@@ -250,7 +254,7 @@ static void _run_dijkstra(state_t *s) {
                     ROTATE_COUNTERCLOCKWISE, 1)) {
             // advance game by input delay ticks
             uint64_t adv = AI_INPUT_DELAY;
-            if (tetris_advance_by(&new_state, &adv) != 0) {
+            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
                 // could not advance because either the game ended or 
             }
             __try_decrease(s, &new_state, parent_idx, ROTATE_CC);
@@ -259,7 +263,7 @@ static void _run_dijkstra(state_t *s) {
         // wait for it to fall
         tetris_state_shallow_copy(&new_state, game_state);
         // advance game until the piece drops
-        tetris_advance_until_drop(&new_state);
+        tetris_advance_until_drop_transient(&new_state);
         __try_decrease(s, &new_state, parent_idx, GO_DOWN);
         /*else {
             // this piece can stick
@@ -305,7 +309,7 @@ state_node * _construct_path_to(state_t *s, state_node *node) {
  */
 static void _choose_best_dst(lha_t *a, state_t *s) {
 
-    state_node * best;
+    state_node * best = NULL;
     float max_h = -INFINITY;
 
     for (state_node * fs = s->falling_spots; fs != LIST_END; fs = fs->next) {
@@ -318,6 +322,10 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
             max_h = h;
             best = fs;
         }
+    }
+
+    if (best == NULL) {
+        return;
     }
 
     state_node * path = _construct_path_to(s, best);
@@ -345,7 +353,6 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
 
     // initial time
     state.t0 = s->time;
-    printf("t0 is %llu\n", state.t0);
 
     heap_init(&state.h);
 
@@ -358,7 +365,8 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
     // orientations). There will be some unused space since you can't actually
     // have a piece with bottom left x-coord = width - 1, but we won't worry
     // about that for simplicity
-    uint64_t board_size = TETRIS_WIDTH * TETRIS_HEIGHT * N_PIECE_ORIENTATIONS;
+    uint64_t board_size = TETRIS_WIDTH * (TETRIS_HEIGHT + CEIL_BUFFER)
+        * N_PIECE_ORIENTATIONS;
 
     state.m = (state_node *) calloc(board_size, sizeof(state_node));
 
@@ -389,6 +397,8 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
     a->__int_state.to_free = state.m;
     heap_destroy(&state.h);
 
+    // place the falling piece back on the board
+    board_place_piece(&s->board, s->falling_piece);
 
     // and finally choose the best place to land of those landing spots, based
     // on heuristic
@@ -435,21 +445,26 @@ int _try_move(state_node * action, tetris_state *s) {
 
 
 int linear_heuristic_go(lha_t *a, tetris_state *s) {
+    state_node * next_action;
 
-    if (a->__int_state.action_list == NULL) {
-construct_path:
-        // if no internal state, run dijkstra's algorithm to compute all
-        // possible landing spots 
-        _find_best_path(a, s);
+    // do this at most 2 times
+    for (int i = 0; i < 2; i++) {
+        if (a->__int_state.action_list == NULL) {
+            // if no internal state, run dijkstra's algorithm to compute all
+            // possible landing spots 
+            _find_best_path(a, s);
+        }
+
+        next_action = a->__int_state.action_list;
+        if (next_action == NULL) {
+            free(a->__int_state.to_free);
+            continue;
+        }
+
+        break;
     }
 
-    state_node * next_action = a->__int_state.action_list;
-    if (next_action == NULL) {
-        free(a->__int_state.to_free);
-        goto construct_path;
-    }
-
-    if (_try_move(next_action, s)) {
+    if (next_action != NULL && _try_move(next_action, s)) {
         // remove action from the action list
         a->__int_state.action_list = next_action->next;
 

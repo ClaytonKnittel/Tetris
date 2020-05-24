@@ -419,7 +419,7 @@ static void _tick_by(tetris_state *s, uint64_t ticks) {
  * is written back into ticks, and 1 is returned. Otherwise, if the piece was
  * not placed and the game was able to advance by ticks, then 0 is returned
  */
-int tetris_advance_by(tetris_state *state, uint64_t *ticks) {
+int tetris_advance_by_transient(tetris_state *state, uint64_t *ticks) {
     uint64_t diff;
     int ret = 0;
 
@@ -433,7 +433,7 @@ int tetris_advance_by(tetris_state *state, uint64_t *ticks) {
             _tick_by(state, diff);
 
             // we moved to a major time step, so advance the game state
-            int res = tetris_advance(state);
+            int res = tetris_advance_transient(state);
             t -= diff;
 
             if (res == ADVANCE_PLACED_PIECE ||
@@ -462,11 +462,11 @@ int tetris_advance_by(tetris_state *state, uint64_t *ticks) {
  * returns 1 if the piece dropped
  * returns 0 if the piece stuck
  */
-int tetris_advance_until_drop(tetris_state *state) {
+int tetris_advance_until_drop_transient(tetris_state *state) {
     uint64_t ticks_to_next_major_ts =
         _ticks_to_next(state->major_tick_count, state->major_tick_time);
 
-    return tetris_advance_by(state, &ticks_to_next_major_ts);
+    return tetris_advance_by_transient(state, &ticks_to_next_major_ts);
 }
 
 

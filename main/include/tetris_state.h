@@ -254,7 +254,7 @@ void tetris_tick(tetris_state *s);
  * is written back into ticks, and 1 is returned. Otherwise, if the piece was
  * not placed and the game was able to advance by ticks, then 0 is returned
  */
-int tetris_advance_by(tetris_state *state, uint64_t *ticks);
+int tetris_advance_by_transient(tetris_state *state, uint64_t *ticks);
 
 
 /*
@@ -264,7 +264,7 @@ int tetris_advance_by(tetris_state *state, uint64_t *ticks);
  * returns 1 if the piece dropped
  * returns 0 if the piece stuck
  */
-int tetris_advance_until_drop(tetris_state *state);
+int tetris_advance_until_drop_transient(tetris_state *state);
 
 
 
