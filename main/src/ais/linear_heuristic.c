@@ -49,10 +49,69 @@ static void print_board(tetris_state * s) {
 }
 
 
+
+
+static int _get_tile(tetris_state *s, int8_t x, int8_t y) {
+    if (board_get_tile(&s->board, x, y)) {
+        return 1;
+    }
+    return piece_contains(s->falling_piece, x, y);
+}
+
+
+
 // goal of AI is to maximize this value
 static float heuristic(tetris_state *s) {
-    piece_t fp = s->falling_piece;
-    return -((float) fp.board_y) + ((float) fp.board_x) / 10.f;
+    uint32_t aggregate_height = 0;
+    //a hole is defined as an empty tile with the tile above it non-empty
+    uint32_t n_holes = 0;
+
+    uint32_t n_complete_lines = 0;
+
+    // cumulative sum of absolute differences in adjacent column heights
+    uint32_t bumpiness = 0;
+
+
+    // height of each column, initialize all elements to 0
+    uint8_t heights[TETRIS_WIDTH] = { 0 };
+
+
+    for (int8_t col = 0; col < TETRIS_WIDTH; col++) {
+        for (int8_t row = TETRIS_HEIGHT - 1; row >= 0; row--) {
+            if (_get_tile(s, col, row) && heights[col] == 0) {
+                // first tile in column that is occupied (from top to bottom)
+                // gives the height of the column
+                heights[col] = row + 1;
+            }
+        }
+    }
+
+    for (int8_t col = 0; col < TETRIS_WIDTH; col++) {
+        aggregate_height += heights[col];
+        if (col > 0) {
+            bumpiness += abs(heights[col - 1] - heights[col]);
+        }
+    }
+
+    for (int8_t row = 0; row < TETRIS_HEIGHT; row++) {
+        int line_complete = 1;
+        for (int8_t col = 0; col < TETRIS_WIDTH; col++) {
+            n_holes += (!_get_tile(s, col, row) &&
+                         _get_tile(s, col, row + 1));
+            line_complete = line_complete && _get_tile(s, col, row);
+        }
+        n_complete_lines += line_complete;
+    }
+
+    static const float a = -.510066f,
+                       b =  .760666f,
+                       c = -.35663f,
+                       d = -.184483f;
+
+    float h = a * aggregate_height + b * n_complete_lines +
+        c * n_holes + d * bumpiness;
+
+    return h;
 }
 
 
@@ -210,11 +269,29 @@ static void _run_dijkstra(state_t *s) {
     while ((node = __heap_node_to_state_node(heap_extract_min(&s->h))) !=
             NULL) {
         game_state = &node->game_state;
+        //print_board(game_state);
+
         time = (uint64_t) node->node.key;
         //printf("Extracted %p %d (%f)\n", node, fp.piece_idx, (time - s->t0) / 60.f);
         uint32_t parent_idx = _find_idx(game_state);
 
         // find all possible successors of this node
+
+        // wait for it to fall
+        tetris_state_shallow_copy(&new_state, game_state);
+        // advance game until the piece drops
+        int ret = tetris_advance_until_drop_transient(&new_state);
+        if (ret == 1) {
+            // this piece can stick
+            state_node * falling_spot = __find_state_node(s, &new_state);
+            __try_falling_spot_append(s, falling_spot);
+        }
+        else {
+            // if the piece did not stick, it must have moved
+            TETRIS_ASSERT(!piece_equals(game_state->falling_piece,
+                        new_state.falling_piece));
+            __try_decrease(s, &new_state, parent_idx, WAIT);
+        }
 
         // KEYBOARD INPUTS:
 
@@ -241,6 +318,24 @@ static void _run_dijkstra(state_t *s) {
             __try_decrease(s, &new_state, parent_idx, GO_RIGHT);
         }
 
+        // press down
+        tetris_state_shallow_copy(&new_state, game_state);
+        if (tetris_move_piece_transient(&new_state, 0, -1)) {
+
+            piece_t cur_piece = new_state.falling_piece;
+
+            // advance game by input delay ticks
+            uint64_t adv = AI_INPUT_DELAY;
+            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
+                // could not advance because either the game ended or 
+            }
+            else if (piece_equals(cur_piece, new_state.falling_piece)) {
+                // only allow pressing down if gravity will not be moving the
+                // falling piece down
+                __try_decrease(s, &new_state, parent_idx, GO_DOWN);
+            }
+        }
+
         // press rotate clockwise
         tetris_state_shallow_copy(&new_state, game_state);
         if (tetris_rotate_piece_transient(&new_state, ROTATE_CLOCKWISE, 1)) {
@@ -249,7 +344,9 @@ static void _run_dijkstra(state_t *s) {
             if (tetris_advance_by_transient(&new_state, &adv) != 0) {
                 // could not advance because either the game ended or 
             }
-            __try_decrease(s, &new_state, parent_idx, ROTATE_C);
+            else {
+                __try_decrease(s, &new_state, parent_idx, ROTATE_C);
+            }
         }
 
         // press rotate counterclockwise
@@ -261,18 +358,9 @@ static void _run_dijkstra(state_t *s) {
             if (tetris_advance_by_transient(&new_state, &adv) != 0) {
                 // could not advance because either the game ended or 
             }
-            __try_decrease(s, &new_state, parent_idx, ROTATE_CC);
-        }
-
-        // wait for it to fall
-        tetris_state_shallow_copy(&new_state, game_state);
-        // advance game until the piece drops
-        int ret = tetris_advance_until_drop_transient(&new_state);
-        __try_decrease(s, &new_state, parent_idx, WAIT);
-        if (ret == 0) {
-            // this piece can stick
-            state_node * falling_spot = __find_state_node(s, &new_state);
-            __try_falling_spot_append(s, falling_spot);
+            else {
+                __try_decrease(s, &new_state, parent_idx, ROTATE_CC);
+            }
         }
 
     }
@@ -326,6 +414,9 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
     float max_h = -INFINITY;
 
     for (state_node * fs = s->falling_spots; fs != LIST_END; fs = fs->next) {
+        //printf("%llu\n", fs->game_state.time);
+        //print_board(&fs->game_state);
+
         float h = heuristic(&fs->game_state);
 
         if (h > max_h) {
@@ -428,12 +519,12 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
     a->__int_state.to_free = state.m;
     heap_destroy(&state.h);
 
-    // place the falling piece back on the board
-    board_place_piece(&s->board, s->falling_piece);
-
     // and finally choose the best place to land of those landing spots, based
     // on heuristic
     _choose_best_dst(a, &state);
+
+    // place the falling piece back on the board
+    board_place_piece(&s->board, s->falling_piece);
 }
 
 
@@ -457,7 +548,7 @@ int _try_move(state_node * action, tetris_state *s) {
                 tetris_move_piece(s, 1, 0);
                 break;
             case GO_DOWN:
-                // gravity will do this for us
+                tetris_move_piece(s, 0, -1);
                 break;
             case ROTATE_C:
                 tetris_rotate_piece(s, ROTATE_CLOCKWISE, 1);

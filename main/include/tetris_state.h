@@ -261,8 +261,8 @@ int tetris_advance_by_transient(tetris_state *state, uint64_t *ticks);
  * advances the game state until the falling piece either falls by one tile or
  * sticks to the ground
  *
- * returns 1 if the piece dropped
- * returns 0 if the piece stuck
+ * returns 1 if the piece stuck
+ * returns 0 if the piece dropped
  */
 int tetris_advance_until_drop_transient(tetris_state *state);
 
