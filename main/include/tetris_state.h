@@ -9,6 +9,14 @@
 #include <board.h>
 #include <piece.h>
 
+
+/*
+ * game states
+ */
+#define PLAY 0
+#define GAME_OVER 1
+
+
 /*
  * falling piece flags
  */
@@ -95,6 +103,14 @@ typedef struct tetris_state {
      */
     piece_hold hold;
 
+
+    /* status of the game, can be one of
+     *  PLAY: normal running state
+     *  GAME_OVER: game has ended because player lost
+     *  CLEAR_ANIMATION: currently animating the clearing of rows
+     */
+    uint8_t state;
+
     // align piece_queue to dword
     char __attribute__((aligned(8))) __pad[0];
 
@@ -142,6 +158,9 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
         float y, float screen_width, float screen_height);
 
 
+void tetris_state_shallow_copy(tetris_state *dst, tetris_state *src);
+
+
 
 /*
  * fetches next piece from the piece queue and places the piece at the top of
@@ -154,7 +173,7 @@ void tetris_get_next_falling_piece(tetris_state *state);
  * similar to get_next_falling_piece, but populates the fp pointer passed with
  * the new piece
  */
-void tetris_get_next_falling_piece_transient(tetris_state *state, piece_t *fp);
+void tetris_get_next_falling_piece_transient(tetris_state *state);
 
 
 /*
@@ -171,8 +190,7 @@ int tetris_move_piece(tetris_state *state, int dx, int dy);
  * this method only reads the state of the board, and updates fp to either the
  * new position if it could successfully move there, or it is not changed
  */
-int tetris_move_piece_transient(tetris_state *state, piece_t *fp,
-        int dx, int dy);
+int tetris_move_piece_transient(tetris_state *state, int dx, int dy);
 
 
 /*
@@ -193,7 +211,7 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
  * similar to rotate_piece, but expects the falling piece to not be on the
  * board, and does not place the new falling piece on the board
  */
-int tetris_rotate_piece_transient(tetris_state *state, piece_t *fp,
+int tetris_rotate_piece_transient(tetris_state *state,
         int rotation, int allow_wall_kicks);
 
 
@@ -213,7 +231,7 @@ void tetris_hold_piece(tetris_state *s);
  * returns 1 if the piece could be held, 0 if it could not (because the hold
  * is locked from another piece being held recently)
  */
-int tetris_hold_piece_transient(tetris_state *s, piece_t *fp);
+int tetris_hold_piece_transient(tetris_state *s);
 
 /*
  * checks the current state to see if there are any lines to be cleared, and if
@@ -223,7 +241,8 @@ int tetris_clear_lines(tetris_state *state);
 
 
 /*
- * advances game state by 1 tick
+ * advances game state by 1 tick (only modifies time values, does not make any
+ * callbacks)
  */
 void tetris_tick(tetris_state *s);
 
@@ -231,8 +250,11 @@ void tetris_tick(tetris_state *s);
 /*
  * advances game state forward by the given number of ticks, which may cause
  * the game state to change (i.e. if gravity moves a piece or something)
+ * If the falling piece stuck at some point, the number of ticks remaining
+ * is written back into ticks, and 1 is returned. Otherwise, if the piece was
+ * not placed and the game was able to advance by ticks, then 0 is returned
  */
-int tetris_advance_by(tetris_state *state, uint64_t ticks);
+int tetris_advance_by(tetris_state *state, uint64_t *ticks);
 
 
 /*
@@ -287,6 +309,11 @@ void tetris_advance_to_next_action(tetris_state *s);
  * should only be called on major time steps
  */
 int tetris_advance(tetris_state *s);
+
+/*
+ * transient version of advance
+ */
+int tetris_advance_transient(tetris_state *s);
 
 
 

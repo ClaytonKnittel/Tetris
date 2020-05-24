@@ -246,7 +246,7 @@ void tetris_init(tetris_t *t, gl_context *context, float x, float y,
     _init_controller(&t->ctrl);
 
     _init_scorer(&t->scorer);
-    
+
     // note: do not need to initialize clear animator, as it is only accessed
     // when in clear animation state, and will be initialized when we enter
     // that state
@@ -274,7 +274,7 @@ void tetris_set_falling_speed(tetris_t *t, double period) {
  */
 static void _switch_state(tetris_t *t, int state) {
 
-    t->state = state;
+    t->game_state.state = state;
 
     switch (state) {
         case PLAY:
@@ -529,7 +529,7 @@ void tetris_step(tetris_t *t) {
         _handle_event(t, &ev);
     }
 
-    switch (t->state) {
+    switch (t->game_state.state) {
         case PLAY:
 
             if (tetris_is_major_time_step(&t->game_state)) {
@@ -540,7 +540,6 @@ void tetris_step(tetris_t *t) {
 
                     if (advance_status == ADVANCE_FAIL) {
                         // game is over
-                        _switch_state(t, GAME_OVER);
                         printf("Game over\n");
                     }
                     else if (advance_status == ADVANCE_MOVED_PIECE) {

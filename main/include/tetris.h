@@ -14,17 +14,12 @@
 #define TETRIS_HEIGHT 20
 
 
-/*
- * game states
- */
-#define PLAY 0
-#define GAME_OVER 1
+
+// additional state added to possible states in tetris_state
 
 // a row is currently being cleared out (gameplay freeezes during this
 // animation). This is the stage during which the clear animator is active
 #define CLEAR_ANIMATION 2
-
-
 
 
 // key flags
@@ -234,13 +229,6 @@ typedef struct tetris {
     clear_animator c_anim;
 
     scorer_t scorer;
-
-    /* status of the game, can be one of
-     *  PLAY: normal running state
-     *  GAME_OVER: game has ended because player lost
-     *  CLEAR_ANIMATION: currently animating the clearing of rows
-     */
-    uint8_t state;
 
     tetris_state game_state;
 

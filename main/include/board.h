@@ -119,6 +119,12 @@ void board_clear_row(board_t *b, int32_t row);
  */
 int board_place_piece(board_t *b, piece_t piece);
 
+/*
+ * returns 1 if the piece can be placed on the board (i.e. at least one tile of
+ * the piece would be on the board), 0 otherwise
+ */
+int board_can_place_piece(board_t *b, piece_t piece);
+
 
 /*
  * removes a piece on the board by setting each of the tiles it occupies back

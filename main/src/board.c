@@ -261,6 +261,23 @@ int board_place_piece(board_t *b, piece_t piece) {
     return piece_placed;
 }
 
+/*
+ * returns 1 if the piece can be placed on the board (i.e. at least one tile of
+ * the piece would be on the board), 0 otherwise
+ */
+int board_can_place_piece(board_t *b, piece_t piece) {
+    define_each_piece_tile(p, piece);
+
+    int piece_placed = 0;
+
+    piece_placed |= !board_get_tile(b, p_x1, p_y1);
+    piece_placed |= !board_get_tile(b, p_x2, p_y2);
+    piece_placed |= !board_get_tile(b, p_x3, p_y3);
+    piece_placed |= !board_get_tile(b, p_x4, p_y4);
+
+    return piece_placed;
+}
+
 
 /*
  * removes a piece on the board by setting each of the tiles it occupies back

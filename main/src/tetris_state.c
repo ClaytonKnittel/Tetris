@@ -61,6 +61,8 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
 
     _init_piece_hold(&state->hold);
 
+    state->state = PLAY;
+
     // initialize time to 0
     state->time = 0LU;
 
@@ -74,6 +76,11 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
     state->key_callback_time  = 0.f;
 
 
+}
+
+
+void tetris_state_shallow_copy(tetris_state *dst, tetris_state *src) {
+    __builtin_memcpy(dst, src, sizeof(tetris_state));
 }
 
 
@@ -118,7 +125,7 @@ static uint32_t _fetch_next_piece_idx(tetris_state *state) {
  * the board, to begin falling
  */
 void tetris_get_next_falling_piece(tetris_state *state) {
-    tetris_get_next_falling_piece_transient(state, &state->falling_piece);
+    tetris_get_next_falling_piece_transient(state);
 }
 
 
@@ -126,9 +133,10 @@ void tetris_get_next_falling_piece(tetris_state *state) {
  * similar to get_next_falling_piece, but populates the fp pointer passed with
  * the new piece
  */
-void tetris_get_next_falling_piece_transient(tetris_state *state, piece_t *fp) {
+void tetris_get_next_falling_piece_transient(tetris_state *state) {
     uint32_t next_piece_idx = _fetch_next_piece_idx(state);
-    piece_init(fp, next_piece_idx, state->board.width, state->board.height);
+    piece_init(&state->falling_piece, next_piece_idx, state->board.width,
+            state->board.height);
 }
 
 
@@ -149,7 +157,7 @@ int tetris_move_piece(tetris_state *state, int dx, int dy) {
     board_remove_piece(&state->board, falling);
 
     // then do a transient rotation
-    ret = tetris_move_piece_transient(state, &state->falling_piece, dx, dy);
+    ret = tetris_move_piece_transient(state, dx, dy);
 
     falling = state->falling_piece;
     // then place the new falling piece back on the board
@@ -159,13 +167,12 @@ int tetris_move_piece(tetris_state *state, int dx, int dy) {
 }
 
 
-int tetris_move_piece_transient(tetris_state *state, piece_t *fp,
-        int dx, int dy) {
+int tetris_move_piece_transient(tetris_state *state, int dx, int dy) {
 
     piece_t falling;
     piece_t new_falling;
 
-    falling = *fp;
+    falling = state->falling_piece;
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
@@ -179,7 +186,7 @@ int tetris_move_piece_transient(tetris_state *state, piece_t *fp,
     else {
 
         // otherwise, the piece can now be moved down into the new location
-        *fp = new_falling;
+        state->falling_piece = new_falling;
         return 1;
     }
 
@@ -207,8 +214,7 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
     board_remove_piece(&state->board, falling);
 
     // then do a transient rotation
-    ret = tetris_rotate_piece_transient(state, &state->falling_piece, rotation,
-            allow_wall_kicks);
+    ret = tetris_rotate_piece_transient(state, rotation, allow_wall_kicks);
 
     falling = state->falling_piece;
     // then place the new falling piece back on the board
@@ -218,15 +224,15 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
 }
 
 
-int tetris_rotate_piece_transient(tetris_state *state, piece_t *fp,
-        int rotation, int allow_wall_kicks) {
+int tetris_rotate_piece_transient(tetris_state *state, int rotation,
+        int allow_wall_kicks) {
 
 
     piece_t falling;
     piece_t new_falling;
     int8_t dx, dy;
 
-    falling = *fp;
+    falling = state->falling_piece;
 
     // and now advance the piece to wherever it needs to go
     new_falling = falling;
@@ -239,7 +245,7 @@ int tetris_rotate_piece_transient(tetris_state *state, piece_t *fp,
 
         // check to see if there would be any collisions here
         if (!board_piece_collides(&state->board, new_falling)) {
-            *fp = new_falling;
+            state->falling_piece = new_falling;
             return 1;
         }
     }
@@ -252,7 +258,7 @@ int tetris_rotate_piece_transient(tetris_state *state, piece_t *fp,
             // check to see if there would be any collisions here
             if (!board_piece_collides(&state->board, new_falling)) {
                 // the piece can now be moved down into the new location
-                *fp = new_falling;
+                state->falling_piece = new_falling;
                 return 1;
             }
 
@@ -278,14 +284,14 @@ void tetris_hold_piece(tetris_state *s) {
     // take the falling piece off the board
     board_remove_piece(&s->board, s->falling_piece);
 
-    if (tetris_hold_piece_transient(s, &s->falling_piece) == 0) {
+    if (tetris_hold_piece_transient(s) == 0) {
         // if the piece could not be held, then put it back
         board_place_piece(&s->board, s->falling_piece);
     }
 }
 
 
-int tetris_hold_piece_transient(tetris_state *s, piece_t *fp) {
+int tetris_hold_piece_transient(tetris_state *s) {
 
     uint8_t held_piece;
 
@@ -304,11 +310,12 @@ int tetris_hold_piece_transient(tetris_state *s, piece_t *fp) {
     s->hold.flags |= PIECE_HOLD_STALE;
 
     if (held_piece != EMPTY) {
-        piece_init(fp, held_piece, s->board.width, s->board.height);
+        piece_init(&s->falling_piece, held_piece, s->board.width,
+                s->board.height);
     }
     else {
         // need to grab the next falling piece from the queue
-        tetris_get_next_falling_piece_transient(s, fp);
+        tetris_get_next_falling_piece_transient(s);
     }
 
     return 1;
@@ -390,7 +397,6 @@ static void _tick_by(tetris_state *s, uint64_t ticks) {
     s->major_tick_time += ticks;
     while (s->major_tick_time >= s->major_tick_count) {
         s->major_tick_time -= s->major_tick_count;
-        tetris_advance(s);
     }
 
     s->minor_tick_time += ticks;
@@ -402,26 +408,65 @@ static void _tick_by(tetris_state *s, uint64_t ticks) {
     while (s->key_callback_time >= s->key_callback_count) {
         s->key_callback_time -= s->key_callback_count;
     }
+
 }
 
 
 /*
  * advances game state forward by the given number of ticks, which may cause
  * the game state to change (i.e. if gravity moves a piece or something)
+ * If the falling piece stuck at some point, the number of ticks remaining
+ * is written back into ticks, and 1 is returned. Otherwise, if the piece was
+ * not placed and the game was able to advance by ticks, then 0 is returned
  */
-int tetris_advance_by(tetris_state *state, uint64_t ticks) {
+int tetris_advance_by(tetris_state *state, uint64_t *ticks) {
     uint64_t diff;
+    int ret = 0;
 
-    while (ticks > 0) {
+    uint64_t t = *ticks;
+
+    while (t > 0) {
         // number of ticks until next major time step
         diff = _ticks_to_next(state->major_tick_count, state->major_tick_time);
-        diff = MIN(diff, ticks);
-        
-        _tick_by(state, diff);
-        ticks -= diff;
+
+        if (diff <= t) {
+            _tick_by(state, diff);
+
+            // we moved to a major time step, so advance the game state
+            int res = tetris_advance(state);
+            t -= diff;
+
+            if (res == ADVANCE_PLACED_PIECE ||
+                    res == ADVANCE_FAIL) {
+                // if either a piece was placed or the game ended, we stop
+                // advancing
+                ret = 1;
+                break;
+            }
+        }
+        else {
+            _tick_by(state, t);
+            t = 0;
+        }
     }
 
-    return 0;
+    *ticks = t;
+
+    return ret;
+}
+
+/*
+ * advances the game state until the falling piece either falls by one tile or
+ * sticks to the ground
+ *
+ * returns 1 if the piece dropped
+ * returns 0 if the piece stuck
+ */
+int tetris_advance_until_drop(tetris_state *state) {
+    uint64_t ticks_to_next_major_ts =
+        _ticks_to_next(state->major_tick_count, state->major_tick_time);
+
+    return tetris_advance_by(state, &ticks_to_next_major_ts);
 }
 
 
@@ -451,13 +496,37 @@ void tetris_advance_to_next_action(tetris_state *s) {
 
 /*
  * advances game state by one step. If it was successfully able to do so, then
- * 1 or 2 is returned, otherwise, if the game ended due to a game over, 0 is
+ * 1, 2 or 3 is returned, otherwise, if the game ended due to a game over, 0 is
  * returned
  *
  * should only be called on major time steps
  */
 int tetris_advance(tetris_state *s) {
+
+    if (s->state == GAME_OVER) {
+        // don't advance
+        return ADVANCE_FAIL;
+    }
+
+    // first, remove the piece from the board where it is
+    board_remove_piece(&s->board, s->falling_piece);
+
+    int ret = tetris_advance_transient(s);
+
+    if (ret != ADVANCE_FAIL) {
+        board_place_piece(&s->board, s->falling_piece);
+    }
+
+    return ret;
+}
+
+int tetris_advance_transient(tetris_state *s) {
     piece_t falling;
+
+    if (s->state == GAME_OVER) {
+        // don't advance
+        return ADVANCE_FAIL;
+    }
 
     falling = s->falling_piece;
 
@@ -466,9 +535,6 @@ int tetris_advance(tetris_state *s) {
 
     // now to try to move the piece down
 
-    // first, remove the piece from the board where it is
-    board_remove_piece(&s->board, falling);
-
     // and now advance the piece downward
     piece_t new_falling = falling;
     piece_move(&new_falling, 0, -1);
@@ -476,21 +542,23 @@ int tetris_advance(tetris_state *s) {
     // check to see if there would be any collisions here
     if (board_piece_collides(&s->board, new_falling)) {
         // then the piece cannot move down, it is now stuck where it was.
-        // First, put the old piece back, then unset the falling piece
-        int placed = board_place_piece(&s->board, falling);
 
         if (s->fp_data.falling_status & HIT_GROUND_LAST_FRAME) {
             // if the piece spend two successive frames hitting the ground,
             // we stick it wherever it is
             _reset_fp_data(&s->fp_data);
 
+            // try to see if the piece can be stuck down here
+            int placed = board_can_place_piece(&s->board, falling);
+
             if (!placed) {
                 // if we could not place this piece even partially on the
                 // board, then the game is over
+                s->state = GAME_OVER;
                 return ADVANCE_FAIL;
             }
 
-            // now need to move the new falling piece down
+            // the piece can be placed
             return ADVANCE_PLACED_PIECE;
         }
         else {
@@ -510,7 +578,6 @@ int tetris_advance(tetris_state *s) {
     }
     else {
         // otherwise, the piece can now be moved down into the new location
-        board_place_piece(&s->board, new_falling);
         s->falling_piece = new_falling;
 
         // unset hit ground last frame flag, in case it was set and the
