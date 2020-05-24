@@ -11,7 +11,7 @@
 typedef struct hold {
     board_t board;
     font_t *font;
-    tetris_t *t;
+    tetris_state *game_state;
     
     // for "Hold" text on screen
     float text_x, text_y, text_w, text_h;
@@ -26,7 +26,7 @@ typedef struct hold {
  * h is the height of the endtire window (text + box)
  */
 int hold_init(hold_t *ph, float x, float y, float w, float h, font_t *font,
-        tetris_t *t);
+        tetris_state *s);
 
 
 void hold_destroy(hold_t *h);

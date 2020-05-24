@@ -55,7 +55,7 @@ int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
     }
 
     if (flags & SHOW_HOLD) {
-        hold_init(h, -.8f, .45f, .28f, .5f, font, t);
+        hold_init(h, -.8f, .45f, .28f, .5f, font, &t->game_state);
     }
 
     if (flags & MANUAL_CONTROL) {

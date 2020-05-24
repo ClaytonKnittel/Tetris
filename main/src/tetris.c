@@ -13,27 +13,10 @@
 // forward declarations
 static void _switch_state(tetris_t *t, int state);
 static void _piece_placed(tetris_t *t);
-static void _tick(tetris_state *s);
+static int _advance(tetris_state *s);
 
 
 
-static void _init_fp_data(falling_piece_data *f) {
-    f->falling_status = 0;
-    f->ground_hit_count = 0;
-
-    f->min_h_inc_time = 0;
-    // set min_h to max value of height
-    f->min_h = 0x7f;
-}
-
-static void _reset_fp_data(falling_piece_data *f) {
-    f->falling_status &= ~HIT_GROUND_LAST_FRAME;
-    f->ground_hit_count = 0;
-
-    f->min_h_inc_time = 0;
-    // set min_h to max value of height
-    f->min_h = 0x7f;
-}
 
 
 /*
@@ -41,8 +24,8 @@ static void _reset_fp_data(falling_piece_data *f) {
  * otherwise 0
  */
 static int _lock_controls(tetris_t *t) {
-    return t->fp_data.min_h_inc_time >= MAX_MIN_H_INC_TIME ||
-           t->fp_data.ground_hit_count >= MAX_GROUND_HIT_COUNT;
+    return t->game_state.fp_data.min_h_inc_time >= MAX_MIN_H_INC_TIME ||
+           t->game_state.fp_data.ground_hit_count >= MAX_GROUND_HIT_COUNT;
 }
 
 
@@ -252,81 +235,14 @@ static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
 
 
 
-static void _init_piece_hold(piece_hold *p) {
-    __builtin_memset(p, 0, sizeof(piece_hold));
-}
-
-
-
-/*
- * performs hold action, which takes the currently falling piece and places it
- * in the hold slot. If there was already a piece in the hold slot, it becomes
- * the next falling piece and the piece queue does not move. Otherwise, if
- * the hold slot was empty, the next piece is immediately chosen off the queue
- */
-static void _hold_piece(tetris_t *t) {
-
-    uint8_t held_piece;
-
-    if (t->hold.flags & PIECE_HOLD_STALE) {
-        // if the hold is stale (a hold operation already happened after the
-        // last placement) then ignore the request
-        return;
-    }
-    
-    held_piece = t->hold.piece_idx;
-
-    t->hold.piece_idx = t->game_state.falling_piece.piece_idx;
-
-    // take the falling piece off the board
-    board_remove_piece(&t->game_state.board, t->game_state.falling_piece);
-
-    // set the stale flag so this operation can't be performed again until a
-    // piece is placed
-    t->hold.flags |= PIECE_HOLD_STALE;
-
-    if (held_piece != EMPTY) {
-        piece_init(&t->game_state.falling_piece, held_piece,
-                t->game_state.board.width, t->game_state.board.height);
-    }
-    else {
-        // need to grab the next falling piece from the queue
-        tetris_get_next_falling_piece(&t->game_state);
-    }
-}
-
 
 
 void tetris_init(tetris_t *t, gl_context *context, float x, float y,
         float screen_width, float screen_height) {
 
-    board_init(&t->game_state.board, TETRIS_WIDTH, TETRIS_HEIGHT);
-    board_set_pos(&t->game_state.board, x, y);
-    board_set_xscale(&t->game_state.board, screen_width);
-    board_set_yscale(&t->game_state.board, screen_height);
-
-    uint8_t *piece_queue = t->game_state.piece_queue;
-
-    // first assign all pieces sequentially in the queue
-    for (uint32_t i = 0; i < 2 * N_PIECES; i++) {
-        piece_queue[i] = (i % N_PIECES) + 1;
-    }
-    t->game_state.queue_idx = 0;
-
-    // then randomize both groups of 7
-    permute(&piece_queue[0],        N_PIECES, sizeof(piece_queue[0]));
-    permute(&piece_queue[N_PIECES], N_PIECES, sizeof(piece_queue[0]));
-
-    // initialize falling piece to empty (no piece)
-    piece_init(&t->game_state.falling_piece, EMPTY, 0, 0);
-
-    _init_fp_data(&t->fp_data);
-
     _init_controller(&t->ctrl);
 
     _init_scorer(&t->scorer);
-
-    _init_piece_hold(&t->hold);
     
     // note: do not need to initialize clear animator, as it is only accessed
     // when in clear animation state, and will be initialized when we enter
@@ -335,18 +251,6 @@ void tetris_init(tetris_t *t, gl_context *context, float x, float y,
     _switch_state(t, PLAY);
 
     key_event_queue_init(&t->kq);
-
-    // initialize time to 0
-    t->game_state.time = 0LU;
-
-    t->game_state.major_tick_count = 16.f;
-    t->game_state.major_tick_time  = 0.f;
-
-    t->game_state.minor_tick_count = 4.f;
-    t->game_state.minor_tick_time  = 0.f;
-
-    t->game_state.key_callback_count = DEFAULT_HELD_KEY_PERIOD;
-    t->game_state.key_callback_time  = 0.f;
 
 }
 
@@ -397,348 +301,11 @@ static void _switch_state(tetris_t *t, int state) {
 }
 
 
-
-static uint32_t _fetch_next_piece_idx(tetris_state *state) {
-    uint32_t next;
-    uint8_t *piece_queue = state->piece_queue;
-    uint16_t queue_idx = state->queue_idx;
-    
-    // take the next piece from the queue
-    next = piece_queue[queue_idx];
-    queue_idx++;
-
-    if (queue_idx == N_PIECES) {
-        // if we just grabbed the last piece in a group of 7, move
-        // the subsequent group of 7 down and generate a new group
-        // 7 to follow it
-        __builtin_memcpy(&piece_queue[0], &piece_queue[N_PIECES],
-                N_PIECES * sizeof(piece_queue[0]));
-
-        // generate next sequence and permute it
-        for (uint32_t i = N_PIECES; i < 2 * N_PIECES; i++) {
-            piece_queue[i] = (i % N_PIECES) + 1;
-        }
-        permute(&piece_queue[N_PIECES], N_PIECES,
-                sizeof(piece_queue[0]));
-
-        // reset queue index to reflect where the pieces moved
-        queue_idx = 0;
-
-    }
-
-    state->queue_idx = queue_idx;
-    return next;
-}
-
-
-
-
-/*
- * fetches next piece from the piece queue and places the piece at the top of
- * the board, to begin falling
- */
-void tetris_get_next_falling_piece(tetris_state *state) {
-    // need to fetch next piece
-    uint32_t next_piece_idx = _fetch_next_piece_idx(state);
-    piece_init(&state->falling_piece, next_piece_idx, state->board.width,
-            state->board.height);
-}
-
-
-
-
-
-/*
- * move the falling piece by dx, dy. If successful, the piece's location is
- * updated and 1 is returned, otherwise it is left where it was and 0 is
- * returned
- */
-int tetris_move_piece(tetris_state *state, int dx, int dy) {
-    int ret;
-
-    piece_t falling = state->falling_piece;
-
-    // first, remove the piece from the board where it is
-    board_remove_piece(&state->board, falling);
-
-    // then do a transient rotation
-    ret = tetris_move_piece_transient(state, &state->falling_piece, dx, dy);
-
-    falling = state->falling_piece;
-    // then place the new falling piece back on the board
-    board_place_piece(&state->board, falling);
-
-    return ret;
-}
-
-
-int tetris_move_piece_transient(tetris_state *state, piece_t *fp,
-        int dx, int dy) {
-
-    piece_t falling;
-    piece_t new_falling;
-
-    falling = *fp;
-
-    // and now advance the piece to wherever it needs to go
-    new_falling = falling;
-    piece_move(&new_falling, dx, dy);
-
-    // check to see if there would be any collisions here
-    if (board_piece_collides(&state->board, new_falling)) {
-        // then the piece cannot move
-        return 0;
-    }
-    else {
-
-        // otherwise, the piece can now be moved down into the new location
-        *fp = new_falling;
-        return 1;
-    }
-
-}
-
-
-
-/*
- * rotate the following piece either clockwise or counterclockwise, depending
- * on the parameter rotation. If unsuccessful, we attempt to place the piece
- * in up to 4 more locations offset from where it would naturally end up,
- * which depend on the current orientation and rotation
- *
- * If all attempts to place the piece fail, 0 is returned and the piece is put
- * back where it was, otherwise 1 is returned and the piece is placed in the
- * new location
- */
-int tetris_rotate_piece(tetris_state *state, int rotation,
-        int allow_wall_kicks) {
-    int ret;
-
-    piece_t falling = state->falling_piece;
-
-    // first, remove the piece from the board where it is
-    board_remove_piece(&state->board, falling);
-
-    // then do a transient rotation
-    ret = tetris_rotate_piece_transient(state, &state->falling_piece, rotation,
-            allow_wall_kicks);
-
-    falling = state->falling_piece;
-    // then place the new falling piece back on the board
-    board_place_piece(&state->board, falling);
-
-    return ret;
-}
-
-
-int tetris_rotate_piece_transient(tetris_state *state, piece_t *fp,
-        int rotation, int allow_wall_kicks) {
-
-
-    piece_t falling;
-    piece_t new_falling;
-    int8_t dx, dy;
-
-    falling = *fp;
-
-    // and now advance the piece to wherever it needs to go
-    new_falling = falling;
-    piece_rotate(&new_falling, rotation);
-
-    if (falling.piece_idx == PIECE_O || !allow_wall_kicks) {
-        // either this piece cannot be rotated, so we don't loop, or the
-        // controls are locked (to prevent spamming spin), so we don't allow
-        // wall kicks
-
-        // check to see if there would be any collisions here
-        if (!board_piece_collides(&state->board, new_falling)) {
-            *fp = new_falling;
-            return 1;
-        }
-    }
-    else {
-        for_each_displacement_trial(falling.piece_idx, falling.orientation,
-                rotation, dx, dy) {
-
-            piece_move(&new_falling, dx, dy);
-
-            // check to see if there would be any collisions here
-            if (!board_piece_collides(&state->board, new_falling)) {
-                // the piece can now be moved down into the new location
-                *fp = new_falling;
-                return 1;
-            }
-
-            // move it back before next iteration
-            piece_move(&new_falling, -dx, -dy);
-        }
-    }
-
-    // there were no suitable locations for the piece
-    return 0;
-
-}
-
-
 static int _rotate_piece(tetris_t *t, int rotation) {
     return tetris_rotate_piece(&t->game_state, rotation,
             !_lock_controls(t));
 }
 
-
-
-
-int tetris_clear_lines(tetris_state *state) {
-    // check the only rows that contain possibly modified tiles
-    int32_t bot = MAX(state->falling_piece.board_y, 0);
-    int32_t top = MIN(state->falling_piece.board_y + PIECE_BB_H,
-            state->board.height);
-
-    int32_t r, dst_r;
-
-    int32_t num_rows_cleared = 0;
-
-    for (r = bot, dst_r = bot; r < top; r++) {
-        if (board_row_full(&state->board, r)) {
-            num_rows_cleared++;
-        }
-        else {
-            dst_r++;
-        }
-
-        if (dst_r != r) {
-            board_copy_row(&state->board, dst_r, r);
-        }
-    }
-
-    if (num_rows_cleared > 0) {
-        // topple down remaining rows
-        for (; r < state->board.height; r++, dst_r++) {
-            board_copy_row(&state->board, dst_r, r);
-        }
-
-        // clear the top most rows which were already toppled but
-        // not overwritten
-        for (; dst_r < state->board.height; dst_r++) {
-            board_clear_row(&state->board, dst_r);
-        }
-    }
-
-    return num_rows_cleared;
-}
-
-
-int tetris_is_major_time_step(tetris_state *s) {
-    return s->major_tick_time < 1;
-}
-
-int tetris_is_minor_time_step(tetris_state *s) {
-    return s->minor_tick_time < 1;
-}
-
-int tetris_is_key_callback_step(tetris_state *s) {
-    return s->key_callback_time < 1;
-}
-
-
-void tetris_advance_to_next_action(tetris_state *s) {
-    do {
-        _tick(s);
-    } while (!tetris_is_major_time_step(s) &&
-             !tetris_is_minor_time_step(s) &&
-             !tetris_is_key_callback_step(s));
-}
-
-
-
-/*
- * advances game state by one step. If it was successfully able to do so, then
- * 1 is returned, otherwise, if the game ended due to a game over, 0 is
- * returned
- *
- * should only be called on major time steps
- */
-static int _advance(tetris_t *t) {
-    piece_t falling;
-
-    // we may loop twice if a piece is placed and the new falling piece has to
-    // be moved down one row. However, if in placing the piece we trigger an
-    // animation (which would change the state of the game from PLAY), we do
-    // not want to initialize the new piece or move it down
-    while (t->state == PLAY) {
-
-        falling = t->game_state.falling_piece;
-
-        // the falling piece must always have been initialized before this point
-        TETRIS_ASSERT(falling.piece_idx != EMPTY);
-
-        // now to try to move the piece down
-
-        // first, remove the piece from the board where it is
-        board_remove_piece(&t->game_state.board, falling);
-
-        // and now advance the piece downward
-        piece_t new_falling = falling;
-        piece_move(&new_falling, 0, -1);
-
-        // check to see if there would be any collisions here
-        if (board_piece_collides(&t->game_state.board, new_falling)) {
-            // then the piece cannot move down, it is now stuck where it was.
-            // First, put the old piece back, then unset the falling piece
-            int placed = board_place_piece(&t->game_state.board, falling);
-
-            if (t->fp_data.falling_status & HIT_GROUND_LAST_FRAME) {
-                // if the piece spend two successive frames hitting the ground,
-                // we stick it wherever it is
-                _reset_fp_data(&t->fp_data);
-
-                if (!placed) {
-                    // if we could not place this piece even partially on the
-                    // board, then the game is over
-                    return 0;
-                }
-
-                // on a successful place, make this call to check for filled rows
-                _piece_placed(t);
-
-                // now need to move the new falling piece down
-                continue;
-            }
-            else {
-                // if we were not hitting the ground last frame, then we set
-                // this flag and allow the player to try moving the piece again
-                // before it sticks
-                t->fp_data.falling_status |= HIT_GROUND_LAST_FRAME;
-
-                // artificially advance time forward to
-                // CTRL_HIT_GROUND_LAST_DELAY% of major time step delay before
-                // the next major time step
-                t->game_state.major_tick_time +=
-                    CTRL_HIT_GROUND_LAST_DELAY *
-                    t->game_state.major_tick_count;
-                break;
-            }
-        }
-        else {
-            // otherwise, the piece can now be moved down into the new location
-            board_place_piece(&t->game_state.board, new_falling);
-            t->game_state.falling_piece = new_falling;
-
-            // unset hit ground last frame flag, in case it was set and the
-            // piece was subsequently moved off the platform
-            t->fp_data.falling_status &= ~HIT_GROUND_LAST_FRAME;
-            t->fp_data.ground_hit_count = 0;
-
-            // unset last action was rotate flag in scorer
-            t->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
-
-            // that is the completion of this move
-            break;
-        }
-    }
-
-    return 1;
-}
 
 
 
@@ -796,7 +363,7 @@ static void _piece_placed(tetris_t *t) {
 
 
     // unset the stale flag in the piece hold struct, since a piece has been placed
-    t->hold.flags &= ~PIECE_HOLD_STALE;
+    t->game_state.hold.flags &= ~PIECE_HOLD_STALE;
 }
 
 
@@ -809,11 +376,11 @@ static void _control_moved_piece(tetris_t *t, int move_type) {
     // flag to give it another frame before it gets stuck (unless we have already
     // exceeded the maximum number of times we are allowed to do this or the
     // piece has not decreased the minimum global y value in sufficient time)
-    if ((t->fp_data.falling_status & HIT_GROUND_LAST_FRAME) &&
+    if ((t->game_state.fp_data.falling_status & HIT_GROUND_LAST_FRAME) &&
             !_lock_controls(t)) {
 
-        t->fp_data.falling_status &= ~HIT_GROUND_LAST_FRAME;
-        t->fp_data.ground_hit_count++;
+        t->game_state.fp_data.falling_status &= ~HIT_GROUND_LAST_FRAME;
+        t->game_state.fp_data.ground_hit_count++;
     }
 
     // update last action type in scorer
@@ -869,7 +436,7 @@ static void _handle_event(tetris_t *t, key_event *ev) {
                 type = MOVE_ROTATE;
                 break;
             case GLFW_KEY_LEFT_SHIFT:
-                _hold_piece(t);
+                tetris_hold_piece(&t->game_state);
                 break;
         }
     }
@@ -948,29 +515,10 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
 }
 
 
-static void _tick(tetris_state *s) {
-    s->time++;
-
-    s->major_tick_time++;
-    if (s->major_tick_time >= s->major_tick_count) {
-        s->major_tick_time -= s->major_tick_count;
-    }
-
-    s->minor_tick_time++;
-    if (s->minor_tick_time >= s->minor_tick_count) {
-        s->minor_tick_time -= s->minor_tick_count;
-    }
-
-    s->key_callback_time++;
-    if (s->key_callback_time >= s->key_callback_count) {
-        s->key_callback_time -= s->key_callback_count;
-    }
-}
-
 
 
 void tetris_step(tetris_t *t) {
-    int could_advance;
+    int advance_status;
     key_event ev;
 
     // first process key events
@@ -983,23 +531,27 @@ void tetris_step(tetris_t *t) {
 
             if (tetris_is_major_time_step(&t->game_state)) {
                 // advance game state
-                could_advance = _advance(t);
 
-                if (!could_advance) {
-                    // game is over
-                    _switch_state(t, GAME_OVER);
-                    printf("Game over\n");
-                }
+                do {
+                    advance_status = tetris_advance(&t->game_state);
 
-                // check to see if min y has increased
-                if (t->fp_data.min_h > t->game_state.falling_piece.board_y) {
-                    t->fp_data.min_h = t->game_state.falling_piece.board_y;
-                    t->fp_data.min_h_inc_time = 0;
-                }
-                else {
-                    t->fp_data.min_h_inc_time =
-                        MIN(t->fp_data.min_h_inc_time + 1, MAX_MIN_H_INC_TIME);
-                }
+                    if (advance_status == ADVANCE_FAIL) {
+                        // game is over
+                        _switch_state(t, GAME_OVER);
+                        printf("Game over\n");
+                    }
+                    else if (advance_status == ADVANCE_MOVED_PIECE) {
+                        // unset last action was rotate flag in scorer
+                        t->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
+                    }
+                    else if (advance_status == ADVANCE_PLACED_PIECE) {
+                        // on a successful place, make this call to check for
+                        // filled rows
+                        _piece_placed(t);
+                    }
+
+                } while (advance_status == ADVANCE_PLACED_PIECE);
+
             }
 
             _handle_ctrl_callbacks(t);
@@ -1025,7 +577,7 @@ void tetris_step(tetris_t *t) {
             __builtin_unreachable();
     }
 
-    _tick(&t->game_state);
+    tetris_tick(&t->game_state);
 }
 
 
