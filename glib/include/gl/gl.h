@@ -7,7 +7,6 @@
 
 #include <gl/color.h>
 
-
 typedef union wh {
     // width and height of the window
     struct {

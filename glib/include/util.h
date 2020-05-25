@@ -1,3 +1,5 @@
+#ifndef _GLIB_UTIL_H
+#define _GLIB_UTIL_H
 
 #define GLEW_STATIC
 #include <GL/glew.h>
@@ -5,6 +7,12 @@
 
 #include <stdint.h>
 #include <stdio.h>
+
+
+/*#include <syslog.h>
+
+#define fprintf(file, ...) syslog(LOG_ALERT, __VA_ARGS__)
+#define printf(...) syslog(LOG_ALERT, __VA_ARGS__)*/
 
 
 // reinterpret cast of int to float (keep bits same)
@@ -56,3 +64,13 @@ static GLenum glCheckError_(const char *file, int line)
     return errorCode;
 }
 #define glCheckError() glCheckError_(__FILE__, __LINE__)
+
+
+
+/*
+ * given a relative URL, gives back the full URL to be used to open a file
+ */
+int sysdep_url_to_abs_url(char * restrict buf, size_t buf_len, const char * restrict url);
+
+
+#endif /* _GLIB_UTIL_H */

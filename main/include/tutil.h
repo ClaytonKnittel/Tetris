@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include <print_colors.h>
+#include <stdio.h>
 
 
 #define P_FILE_LINE P_LGREEN __FILE__ P_DEFAULT ":" P_LCYAN "%d" P_DEFAULT

@@ -1,6 +1,7 @@
 
 #include <getopt.h>
 #include <stdio.h>
+#include <tutil.h>
 #include <unistd.h>
 
 #include <math/random.h>
@@ -10,6 +11,9 @@
 
 #include <game.h>
 #include <ai.h>
+
+#include <syslog.h>
+#include <util.h>
 
 
 #define WIDTH 1024
@@ -37,6 +41,11 @@ int main(int argc, char *argv[]) {
     game_t g;
     font_t font;
 
+    openlog("tetris", LOG_CONS, LOG_USER);
+
+    char b[128];
+    sysdep_url_to_abs_url(b, sizeof(b), "test/url");
+
     // by default, seed is system time
     uint64_t seed = time(NULL);
     char *buf;
@@ -45,7 +54,7 @@ int main(int argc, char *argv[]) {
     struct ai *ai = NULL;
 
     int opt;
-    while ((opt = getopt(argc, argv, "a:s:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:a:s:")) != -1) {
         switch(opt) {
             case 'a':
                 // use AI
@@ -64,6 +73,9 @@ int main(int argc, char *argv[]) {
                             "number\n", optarg);
                     return usage(argv);
                 }
+                break;
+            case 'p':
+                // for MacOS compatibility (gives sn_0_...)
                 break;
             default:
                 return usage(argv);
@@ -105,6 +117,8 @@ int main(int argc, char *argv[]) {
     game_destroy(&g);
     font_destroy(&font);
     gl_exit(&c);
+
+    closelog();
 
     return 0;
 }

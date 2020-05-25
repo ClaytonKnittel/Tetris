@@ -16,9 +16,9 @@ $(shell mkdir -p $(OBJDIRS))
 DEPFILES=$(SRC:$(SDIR)/%.c=$(ODIR)/%.d)
 
 .PHONY: all
-all: $(BDIR)/game
+all: $(BDIR)/$(EXE_NAME)
 
-$(BDIR)/game: $(OBJ) $(LDIR)/libglib.a
+$(BDIR)/$(EXE_NAME): $(OBJ) $(LDIR)/libglib.a
 	$(CC) $(CFLAGS) $(OBJ) -o $@ $(LDFLAGS) -lglib
 
 $(ODIR)/%.o: $(SDIR)/%.c

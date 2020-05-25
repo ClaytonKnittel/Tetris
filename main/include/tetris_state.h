@@ -6,6 +6,8 @@
 
 #include <gl/gl.h>
 
+#include <tutil.h>
+
 #include <board.h>
 #include <piece.h>
 
