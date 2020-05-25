@@ -16,10 +16,16 @@
 // rotated off the top of the screen or something
 #define CEIL_BUFFER 2
 
+// number of moves the AI is to look ahead to (1 means only think about current
+// move)
+#define DEFAULT_DEPTH 2
+
 
 
 lha_t * linear_heuristic_agent_init() {
     lha_t * agent = (lha_t *) calloc(1, sizeof(lha_t));
+
+    agent->depth = DEFAULT_DEPTH;
 
     return agent;
 }
@@ -273,7 +279,7 @@ static void __try_falling_spot_append(state_t * s, state_node * node) {
 static void _run_dijkstra(state_t *s) {
     state_node * node;
     tetris_state * game_state, new_state;
-    uint64_t time;
+    uint64_t time = 0;
 
     while ((node = __heap_node_to_state_node(heap_extract_min(&s->h))) !=
             NULL) {
@@ -283,7 +289,7 @@ static void _run_dijkstra(state_t *s) {
         // discovered nodes must be non-decreasing in time
         TETRIS_ASSERT(node->game_state.time >= time);
 
-        time = node->game_state.time;
+        time = game_state->time;
         //printf("Extracted %p %d (%f)\n", node, fp.piece_idx, (time - s->t0) / 60.f);
         uint32_t parent_idx = _find_idx(game_state);
 
@@ -341,7 +347,6 @@ static void _run_dijkstra(state_t *s) {
                 tetris_advance_to_next_minor_time_step(&new_state) == 0) {
 
             if (tetris_move_piece_transient(&new_state, 0, -1)) {
-                printf("%llu -> %llu\n", time, new_state.time);
 
                 uint64_t down_time = new_state.time;
 
@@ -434,11 +439,17 @@ state_node * _construct_path_to(state_t *s, state_node *node) {
 }
 
 
+static float _find_best_path(lha_t *a, tetris_state *s, int depth);
+
 /*
  * go through list of possible landing spots and choose which one makes
  * heuristic highest
+ *
+ * returns the heuristic value of the best landing spot
  */
-static void _choose_best_dst(lha_t *a, state_t *s) {
+static float _choose_best_dst(lha_t *a, state_t *s, int depth) {
+
+    tetris_state tmp;
 
     state_node * best = NULL;
     float max_h = -INFINITY;
@@ -447,7 +458,28 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
         //printf("%llu\n", fs->game_state.time);
         //print_board(&fs->game_state);
 
-        float h = heuristic(&fs->game_state);
+        float h;
+        if (depth == 1) {
+            h = heuristic(&fs->game_state);
+        }
+        else {
+            // make shallow copy of the game state at state_node fs
+            tetris_state_shallow_copy(&tmp, &fs->game_state);
+
+            // save the current falling piece, since it will be changed
+            piece_t old_fp = tmp.falling_piece;
+
+            // put the falling piece on the board
+            board_place_piece(&tmp.board, old_fp);
+            // fetch the next falling piece
+            tetris_get_next_falling_piece_transient(&tmp);
+
+            // recursively call find best path on the new state
+            h = _find_best_path(NULL, &tmp, depth - 1);
+
+            // remove the old falling piece from the board
+            board_remove_piece(&tmp.board, old_fp);
+        }
 
         if (h > max_h) {
             max_h = h;
@@ -455,15 +487,14 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
         }
     }
 
-    if (best == NULL) {
-        return;
+    if (a != NULL && best != NULL) {
+        state_node * path = _construct_path_to(s, best);
+        a->__int_state.action_list = path;
     }
 
-    state_node * path = _construct_path_to(s, best);
+    return max_h;
 
-    a->__int_state.action_list = path;
-
-    printf("Path:\n");
+    /*printf("Path:\n");
     for (state_node * fs = path; fs != NULL; fs = fs->next) {
         printf("t = %llu\n", fs->cb_time);
         switch (fs->action) {
@@ -488,20 +519,19 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
         }
         print_board(&fs->game_state);
         printf("\n");
-    }
+    }*/
 
 }
 
 
+
 // calculate all places we can go and construct a path to the place with
 // highest heuristic score
-static void _find_best_path(lha_t *a, tetris_state *s) {
+//
+// if a is NULL, then only return the best heuristic value, don't construct
+// a path
+static float _find_best_path(lha_t *a, tetris_state *s, int depth) {
     state_t state;
-
-    // calculate max number of moves that can be input between any major time
-    // steps to determine how many actions can be performed, at most, between
-    // major time steps (i.e. the falling piece going down by one tile
-    //uint32_t moves_per_mjts = s->major_tick_count / AI_INPUT_DELAY;
 
     // initial time
     state.t0 = s->time;
@@ -534,8 +564,6 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
 
     // copy the game state into the first node
     tetris_state_shallow_copy(&fp_node->game_state, s);
-    // and remove the falling piece from the board
-    board_remove_piece(&s->board, s->falling_piece);
 
     // starting node has no parent, so make parent index -1 (invalid)
     fp_node->parent_idx = -1;
@@ -545,16 +573,21 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
     // possible landing locaations
     _run_dijkstra(&state);
 
-    // will be freed once the list is no longer in use
-    a->__int_state.to_free = state.m;
     heap_destroy(&state.h);
 
-    // and finally choose the best place to land of those landing spots, based
+    // choose the best place to land of those landing spots, based
     // on heuristic
-    _choose_best_dst(a, &state);
+    float ret = _choose_best_dst(a, &state, depth);
 
-    // place the falling piece back on the board
-    board_place_piece(&s->board, s->falling_piece);
+    if (a != NULL) {
+        // will be freed once the list is no longer in use
+        a->__int_state.to_free = state.m;
+    }
+    else {
+        free(state.m);
+    }
+
+    return ret;
 }
 
 
@@ -611,7 +644,14 @@ int linear_heuristic_go(lha_t *a, tetris_state *s) {
         if (a->__int_state.action_list == NULL) {
             // if no internal state, run dijkstra's algorithm to compute all
             // possible landing spots 
-            _find_best_path(a, s);
+
+            // remove the falling piece from the board
+            board_remove_piece(&s->board, s->falling_piece);
+
+            _find_best_path(a, s, a->depth);
+
+            // place the falling piece back on the board
+            board_place_piece(&s->board, s->falling_piece);
         }
 
         next_action = a->__int_state.action_list;
