@@ -43,9 +43,6 @@ int main(int argc, char *argv[]) {
 
     openlog("tetris", LOG_CONS, LOG_USER);
 
-    char b[128];
-    sysdep_url_to_abs_url(b, sizeof(b), "test/url");
-
     // by default, seed is system time
     uint64_t seed = time(NULL);
     char *buf;

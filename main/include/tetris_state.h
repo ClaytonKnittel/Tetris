@@ -288,6 +288,14 @@ int tetris_is_key_callback_step(tetris_state *s);
  */
 void tetris_advance_to_next_action(tetris_state *s);
 
+/*
+ * advance to the next minor time step which is not a major time step
+ *
+ * return 0 if a piece was not placed/the game did not end before the next
+ * minor time step, 1 otherwise
+ */
+int tetris_advance_to_next_minor_time_step(tetris_state *s);
+
 
 
 // could not advance game state (game over)

@@ -147,6 +147,10 @@ typedef struct state_node {
     // snapshot of the game state at this particular state node
     tetris_state game_state;
 
+    // time at which to perform the action, must be at or before
+    // game_state.time
+    uint64_t cb_time;
+
     // index of state node preceeding this one on shortest path
     int32_t parent_idx;
     // action taken to get here from parent
@@ -219,28 +223,33 @@ static state_node * __find_state_node(state_t * s, tetris_state * game_state) {
 
 
 
+/*
+ * discover new path to new_state, where action is performed at time "cb_time"
+ * and the preceding state is parent_idx
+ */
 static void __try_decrease(state_t * s, tetris_state * new_state,
-        uint32_t parent_idx, int action) {
+        uint64_t cb_time, uint32_t parent_idx, int action) {
 
     uint64_t new_time = new_state->time;
 
     state_node * node = __find_state_node(s, new_state);
 
-    if (node->node.key == INFTY) {
+    if (node->time == INFTY) {
         HEAP_NODE_SET(&node->node, new_time);
         heap_insert(&s->h, &node->node);
-
-        tetris_state_shallow_copy(&node->game_state, new_state);
-        node->parent_idx = parent_idx;
-        node->action = action;
     }
-    else if (node->node.key > new_time) {
+    else if (node->time > new_time) {
         heap_decrease_key(&s->h, &node->node, new_time);
-
-        tetris_state_shallow_copy(&node->game_state, new_state);
-        node->parent_idx = parent_idx;
-        node->action = action;
     }
+    else {
+        return;
+    }
+
+    // if the node was decreased, update its fields
+    tetris_state_shallow_copy(&node->game_state, new_state);
+    node->cb_time = cb_time;
+    node->parent_idx = parent_idx;
+    node->action = action;
 }
 
 
@@ -271,7 +280,10 @@ static void _run_dijkstra(state_t *s) {
         game_state = &node->game_state;
         //print_board(game_state);
 
-        time = (uint64_t) node->node.key;
+        // discovered nodes must be non-decreasing in time
+        TETRIS_ASSERT(node->game_state.time >= time);
+
+        time = node->game_state.time;
         //printf("Extracted %p %d (%f)\n", node, fp.piece_idx, (time - s->t0) / 60.f);
         uint32_t parent_idx = _find_idx(game_state);
 
@@ -290,7 +302,8 @@ static void _run_dijkstra(state_t *s) {
             // if the piece did not stick, it must have moved
             TETRIS_ASSERT(!piece_equals(game_state->falling_piece,
                         new_state.falling_piece));
-            __try_decrease(s, &new_state, parent_idx, WAIT);
+            // wait until the gravity would drop the piece (new_state.time)
+            __try_decrease(s, &new_state, new_state.time, parent_idx, WAIT);
         }
 
         // KEYBOARD INPUTS:
@@ -301,10 +314,11 @@ static void _run_dijkstra(state_t *s) {
         if (tetris_move_piece_transient(&new_state, -1, 0)) {
             // advance game by input delay ticks
             uint64_t adv = AI_INPUT_DELAY;
-            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
-                // could not advance because either the game ended or 
+            if (tetris_advance_by_transient(&new_state, &adv) == 0) {
+                // only add to the list of reachable states if the move is
+                // possible
+                __try_decrease(s, &new_state, time, parent_idx, GO_LEFT);
             }
-            __try_decrease(s, &new_state, parent_idx, GO_LEFT);
         }
 
         // press right
@@ -312,27 +326,37 @@ static void _run_dijkstra(state_t *s) {
         if (tetris_move_piece_transient(&new_state, 1, 0)) {
             // advance game by input delay ticks
             uint64_t adv = AI_INPUT_DELAY;
-            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
-                // could not advance because either the game ended or 
+            if (tetris_advance_by_transient(&new_state, &adv) == 0) {
+                // only add to the list of reachable states if the move is
+                // possible
+                __try_decrease(s, &new_state, time, parent_idx, GO_RIGHT);
             }
-            __try_decrease(s, &new_state, parent_idx, GO_RIGHT);
         }
 
         // press down
         tetris_state_shallow_copy(&new_state, game_state);
-        if (tetris_move_piece_transient(&new_state, 0, -1)) {
+        // can only move down on minor time steps
+        if ((tetris_is_minor_time_step(&new_state) &&
+                    !tetris_is_major_time_step(&new_state)) ||
+                tetris_advance_to_next_minor_time_step(&new_state) == 0) {
 
-            piece_t cur_piece = new_state.falling_piece;
+            if (tetris_move_piece_transient(&new_state, 0, -1)) {
+                printf("%llu -> %llu\n", time, new_state.time);
 
-            // advance game by input delay ticks
-            uint64_t adv = AI_INPUT_DELAY;
-            if (tetris_advance_by_transient(&new_state, &adv) != 0) {
-                // could not advance because either the game ended or 
-            }
-            else if (piece_equals(cur_piece, new_state.falling_piece)) {
-                // only allow pressing down if gravity will not be moving the
-                // falling piece down
-                __try_decrease(s, &new_state, parent_idx, GO_DOWN);
+                uint64_t down_time = new_state.time;
+
+                // advance game by input delay ticks
+                uint64_t adv = AI_INPUT_DELAY;
+                if (tetris_advance_by_transient(&new_state, &adv) != 0) {
+                    // could not advance because either the game ended or 
+                }
+                else {
+                    //TETRIS_ASSERT(piece_equals(cur_piece, new_state.falling_piece));
+                    // only allow pressing down if gravity will not be moving
+                    // the falling piece down
+                    __try_decrease(s, &new_state, down_time, parent_idx,
+                            GO_DOWN);
+                }
             }
         }
 
@@ -345,7 +369,7 @@ static void _run_dijkstra(state_t *s) {
                 // could not advance because either the game ended or 
             }
             else {
-                __try_decrease(s, &new_state, parent_idx, ROTATE_C);
+                __try_decrease(s, &new_state, time, parent_idx, ROTATE_C);
             }
         }
 
@@ -359,7 +383,7 @@ static void _run_dijkstra(state_t *s) {
                 // could not advance because either the game ended or 
             }
             else {
-                __try_decrease(s, &new_state, parent_idx, ROTATE_CC);
+                __try_decrease(s, &new_state, time, parent_idx, ROTATE_CC);
             }
         }
 
@@ -382,6 +406,9 @@ state_node * _construct_path_to(state_t *s, state_node *node) {
     // the last action is always a wait, since we have to let the piece stick
     // into place
     int prev_action = WAIT;
+    // wait until the final state of the game, which is wherever the game state
+    // ends after performing the action
+    uint64_t prev_cb_time = node->game_state.time;
 
     while (1) {
         node->next = prev;
@@ -389,6 +416,9 @@ state_node * _construct_path_to(state_t *s, state_node *node) {
 
         // action is now the action needed to be taken to get from this node
         // to the next node, not the action to get here from the previous
+        uint64_t next_cb_time = node->cb_time;
+        node->cb_time = prev_cb_time;
+        prev_cb_time = next_cb_time;
         int next_action = node->action;
         node->action = prev_action;
         prev_action = next_action;
@@ -433,9 +463,9 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
 
     a->__int_state.action_list = path;
 
-    /*printf("Path:\n");
+    printf("Path:\n");
     for (state_node * fs = path; fs != NULL; fs = fs->next) {
-        printf("t = %llu\n", fs->time);
+        printf("t = %llu\n", fs->cb_time);
         switch (fs->action) {
             case GO_LEFT:
                 printf("go left\n");
@@ -458,7 +488,7 @@ static void _choose_best_dst(lha_t *a, state_t *s) {
         }
         print_board(&fs->game_state);
         printf("\n");
-    }*/
+    }
 
 }
 
@@ -536,7 +566,7 @@ static void _find_best_path(lha_t *a, tetris_state *s) {
  */
 int _try_move(state_node * action, tetris_state *s) {
 
-    if (action->time <= s->time) {
+    if (action->cb_time <= s->time) {
         // time to perform the action
         int ret = 1;
 
@@ -596,11 +626,12 @@ int linear_heuristic_go(lha_t *a, tetris_state *s) {
         break;
     }
 
-    if (next_action != NULL && _try_move(next_action, s)) {
+    while (next_action != NULL && _try_move(next_action, s)) {
         // TODO assert piece position
 
         // remove action from the action list
         a->__int_state.action_list = next_action->next;
+        next_action = next_action->next;
 
         /*if (next_action->action != GO_DOWN &&
                 !piece_equals(next_action->falling_piece, s->falling_piece)) {

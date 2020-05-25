@@ -505,6 +505,17 @@ void tetris_advance_to_next_action(tetris_state *s) {
              !tetris_is_key_callback_step(s));
 }
 
+int tetris_advance_to_next_minor_time_step(tetris_state *s) {
+    int ret;
+    do {
+        uint64_t ticks_to_next_minor_ts =
+            _ticks_to_next(s->minor_tick_count, s->minor_tick_time);
+        ret = tetris_advance_by_transient(s, &ticks_to_next_minor_ts);
+    } while(ret == 0 && tetris_is_major_time_step(s));
+
+    return ret;
+}
+
 
 /*
  * advances game state by one step. If it was successfully able to do so, then
