@@ -455,30 +455,34 @@ static float _choose_best_dst(lha_t *a, state_t *s, int depth) {
     float max_h = -INFINITY;
 
     for (state_node * fs = s->falling_spots; fs != LIST_END; fs = fs->next) {
-        //printf("%llu\n", fs->game_state.time);
-        //print_board(&fs->game_state);
+
+        //if (a != NULL) {
+            //printf("%llu\n", fs->game_state.time);
+            //print_board(&fs->game_state);
+        //}
 
         float h;
         if (depth == 1) {
             h = heuristic(&fs->game_state);
         }
         else {
-            // make shallow copy of the game state at state_node fs
-            tetris_state_shallow_copy(&tmp, &fs->game_state);
+            // make deep copy of the game state at state_node fs
+            tetris_state_deep_copy(&tmp, &fs->game_state);
 
             // save the current falling piece, since it will be changed
             piece_t old_fp = tmp.falling_piece;
 
             // put the falling piece on the board
             board_place_piece(&tmp.board, old_fp);
+            // clear any lines cleared by this piece
+            tetris_clear_lines(&tmp);
             // fetch the next falling piece
             tetris_get_next_falling_piece_transient(&tmp);
 
             // recursively call find best path on the new state
             h = _find_best_path(NULL, &tmp, depth - 1);
 
-            // remove the old falling piece from the board
-            board_remove_piece(&tmp.board, old_fp);
+            tetris_state_destroy(&tmp);
         }
 
         if (h > max_h) {
@@ -490,37 +494,36 @@ static float _choose_best_dst(lha_t *a, state_t *s, int depth) {
     if (a != NULL && best != NULL) {
         state_node * path = _construct_path_to(s, best);
         a->__int_state.action_list = path;
+    
+        /*printf("Path:\n");
+        for (state_node * fs = path; fs != NULL; fs = fs->next) {
+            printf("t = %llu\n", fs->cb_time);
+            switch (fs->action) {
+                case GO_LEFT:
+                    printf("go left\n");
+                    break;
+                case GO_RIGHT:
+                    printf("go right\n");
+                    break;
+                case GO_DOWN:
+                    printf("go down\n");
+                    break;
+                case ROTATE_C:
+                    printf("rotate clockwise\n");
+                    break;
+                case ROTATE_CC:
+                    printf("rotate counterclockwise\n");
+                    break;
+                case WAIT:
+                    printf("wait\n");
+                    break;
+            }
+            print_board(&fs->game_state);
+            printf("\n");
+        }*/
     }
 
     return max_h;
-
-    /*printf("Path:\n");
-    for (state_node * fs = path; fs != NULL; fs = fs->next) {
-        printf("t = %llu\n", fs->cb_time);
-        switch (fs->action) {
-            case GO_LEFT:
-                printf("go left\n");
-                break;
-            case GO_RIGHT:
-                printf("go right\n");
-                break;
-            case GO_DOWN:
-                printf("go down\n");
-                break;
-            case ROTATE_C:
-                printf("rotate clockwise\n");
-                break;
-            case ROTATE_CC:
-                printf("rotate counterclockwise\n");
-                break;
-            case WAIT:
-                printf("wait\n");
-                break;
-        }
-        print_board(&fs->game_state);
-        printf("\n");
-    }*/
-
 }
 
 

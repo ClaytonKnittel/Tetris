@@ -32,6 +32,114 @@ static void _init_piece_hold(piece_hold *p) {
 }
 
 
+static void _init_scorer(scorer_t *s) {
+    __builtin_memset(s, 0, sizeof(scorer_t));
+}
+
+/*
+ * to be called after a piece is placed. This method takes the game state
+ * struct, the number of rows cleared in the move, and the type of the piece
+ * which was just placed
+ */
+void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared) {
+
+    int t_spin = 0;
+    int b2b = 0;
+
+    uint8_t piece_type = s->falling_piece.piece_idx;
+
+    if (piece_type == PIECE_T &&
+            (s->scorer.status & SCORER_LAST_ACTION_WAS_ROTATE)) {
+
+        // check the four diagonally adjacent tiles to center of T piece to see
+        // if at least 3 are occupied
+        // note: center of piece is at (1, 1), relative to piece coordinates
+
+        int8_t x = s->falling_piece.board_x;
+        int8_t y = s->falling_piece.board_y;
+
+        int tot_occ = 0;
+        tot_occ += board_get_tile(&s->board, x, y) != EMPTY;
+        tot_occ += board_get_tile(&s->board, x + 2, y) != EMPTY;
+        tot_occ += board_get_tile(&s->board, x, y + 2) != EMPTY;
+        tot_occ += board_get_tile(&s->board, x + 2, y + 2) != EMPTY;
+
+        if (tot_occ >= 3) {
+            printf("T-Spin ");
+            if (num_rows_cleared == 0) {
+                printf("\n");
+            }
+            t_spin = 1;
+        }
+    }
+
+    // difficult moves are either t spins with > 0 clears or tetris's
+    if (t_spin || num_rows_cleared == 4) {
+        if (s->scorer.status & SCORER_LAST_CLEAR_WAS_HARD) {
+            printf("B2B ");
+            b2b = 1;
+        }
+        s->scorer.status |= SCORER_LAST_CLEAR_WAS_HARD;
+    }
+    else if (num_rows_cleared > 0) {
+        // if this was a clear, but not a hard one, unset the flag
+        s->scorer.status &= ~SCORER_LAST_CLEAR_WAS_HARD;
+    }
+
+
+    if (num_rows_cleared > 0) {
+
+        // if any lines were cleared, we have a combo of at least 1
+        s->scorer.combo_len++;
+        if (s->scorer.combo_len >= 2) {
+            printf("Combo of length %d\n", s->scorer.combo_len);
+        }
+
+
+        int32_t pts;
+
+        TETRIS_ASSERT(num_rows_cleared <= 4);
+        switch (num_rows_cleared) {
+            case 1:
+                printf("Single");
+                pts = t_spin ? (b2b ? 1200 : 800) : 100;
+                break;
+            case 2:
+                printf("Double");
+                pts = t_spin ? (b2b ? 1800 : 1200) : 300;
+                break;
+            case 3:
+                printf("Triple");
+                pts = t_spin ? (b2b ? 2400 : 1600) : 500;
+                break;
+            case 4:
+                printf("Tetris");
+                TETRIS_ASSERT(!t_spin);
+                pts = b2b ? 1200 : 800;
+                break;
+        }
+
+        if (s->scorer.combo_len >= 2) {
+            pts += 50 * s->scorer.combo_len;
+        }
+
+        s->scorer.score += pts;
+
+        printf(" %d\n", pts);
+    }
+    else {
+        // if no lines were cleared, then we have to reset the combo count
+        s->scorer.combo_len = 0;
+
+        if (t_spin) {
+            // 400 points for a t-spin without any lines cleared
+            s->scorer.score += 400;
+        }
+    }
+}
+
+
+
 
 void tetris_state_init(tetris_state *state, gl_context *context, float x,
         float y, float screen_width, float screen_height) {
@@ -61,6 +169,8 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
 
     _init_piece_hold(&state->hold);
 
+    _init_scorer(&state->scorer);
+
     state->state = PLAY;
 
     // initialize time to 0
@@ -79,9 +189,29 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
 }
 
 
+void tetris_state_destroy(tetris_state *state) {
+    board_destroy(&state->board);
+}
+
+
 void tetris_state_shallow_copy(tetris_state *dst, tetris_state *src) {
     __builtin_memcpy(dst, src, sizeof(tetris_state));
 }
+
+
+void tetris_state_deep_copy(tetris_state *dst, tetris_state *src) {
+    tetris_state_shallow_copy(dst, src);
+    board_deep_copy(&dst->board, &src->board);
+}
+
+
+void tetris_set_falling_speed(tetris_state *s, double period) {
+    double prev_period = s->major_tick_count;
+    // set time to same percentage of the way through current tick as before
+    s->major_tick_time *= period / prev_period;
+    s->major_tick_count = period;
+}
+
 
 
 
@@ -187,6 +317,9 @@ int tetris_move_piece_transient(tetris_state *state, int dx, int dy) {
 
         // otherwise, the piece can now be moved down into the new location
         state->falling_piece = new_falling;
+
+        // update last move type in scorer
+        state->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
         return 1;
     }
 
@@ -246,6 +379,9 @@ int tetris_rotate_piece_transient(tetris_state *state, int rotation,
         // check to see if there would be any collisions here
         if (!board_piece_collides(&state->board, new_falling)) {
             state->falling_piece = new_falling;
+
+            // update last action in scorer
+            state->scorer.status |= SCORER_LAST_ACTION_WAS_ROTATE;
             return 1;
         }
     }
@@ -259,6 +395,9 @@ int tetris_rotate_piece_transient(tetris_state *state, int rotation,
             if (!board_piece_collides(&state->board, new_falling)) {
                 // the piece can now be moved down into the new location
                 state->falling_piece = new_falling;
+
+                // update last action in scorer
+                state->scorer.status |= SCORER_LAST_ACTION_WAS_ROTATE;
                 return 1;
             }
 
@@ -335,13 +474,14 @@ int tetris_clear_lines(tetris_state *state) {
 
     int32_t num_rows_cleared = 0;
 
-    for (r = bot, dst_r = bot; r < top; r++) {
+    for (r = bot, dst_r = bot; r < top;) {
         if (board_row_full(&state->board, r)) {
             num_rows_cleared++;
         }
         else {
             dst_r++;
         }
+        r++;
 
         if (dst_r != r) {
             board_copy_row(&state->board, dst_r, r);
@@ -360,6 +500,9 @@ int tetris_clear_lines(tetris_state *state) {
             board_clear_row(&state->board, dst_r);
         }
     }
+
+    // register the line clear to the scorer
+    tetris_scorer_count_move(state, num_rows_cleared);
 
     return num_rows_cleared;
 }
@@ -617,6 +760,9 @@ int tetris_advance_transient(tetris_state *s) {
             s->fp_data.min_h_inc_time =
                 MIN(s->fp_data.min_h_inc_time + 1, MAX_MIN_H_INC_TIME);
         }
+
+        // unset last action was rotate flag in scorer
+        s->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
 
         // that is the completion of this move
         return ADVANCE_MOVED_PIECE;

@@ -23,6 +23,7 @@
 
 #define BOARD_CHANGED 0x1
 #define BOARD_GRAYED 0x2
+#define BOARD_COPY 0x4
 
 
 typedef struct board {
@@ -40,6 +41,7 @@ typedef struct board {
      *  BOARD_CHANGED: set whenever any of the tiles on the board have
      *      been changed
      *  BOARD_GRAYED: set if the board is to be displayed grayed out
+     *  BOARD_COPY: set if this is a copy of the original board
      */
     uint32_t flags;
 
@@ -54,6 +56,14 @@ typedef struct board {
 int board_init(board_t *b, uint32_t width, uint32_t height);
 
 void board_destroy(board_t *b);
+
+
+/*
+ * makes a deep copy of the baord. The original board MUST be destroyed after
+ * all of its copies are destroyed, if a copy is used after the original was
+ * destroyed, the behavior is undefined
+ */
+void board_deep_copy(board_t *dst, const board_t *src);
 
 
 static void board_set_pos(board_t *b, float x, float y) {

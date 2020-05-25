@@ -127,113 +127,6 @@ static void _finish_clear_animation(tetris_t *t) {
 }
 
 
-static void _init_scorer(scorer_t *s) {
-    __builtin_memset(s, 0, sizeof(scorer_t));
-}
-
-/*
- * to be called after a piece is placed. This method takes the game state
- * struct, the number of rows cleared in the move, and the type of the piece
- * which was just placed
- */
-static void _scorer_count_move(tetris_t *t, int32_t num_rows_cleared,
-        uint8_t piece_type) {
-
-    int t_spin = 0;
-    int b2b = 0;
-
-    if (piece_type == PIECE_T &&
-            (t->scorer.status & SCORER_LAST_ACTION_WAS_ROTATE)) {
-
-        // check the four diagonally adjacent tiles to center of T piece to see
-        // if at least 3 are occupied
-        // note: center of piece is at (1, 1), relative to piece coordinates
-
-        int8_t x = t->game_state.falling_piece.board_x;
-        int8_t y = t->game_state.falling_piece.board_y;
-
-        int tot_occ = 0;
-        tot_occ += board_get_tile(&t->game_state.board, x, y) != EMPTY;
-        tot_occ += board_get_tile(&t->game_state.board, x + 2, y) != EMPTY;
-        tot_occ += board_get_tile(&t->game_state.board, x, y + 2) != EMPTY;
-        tot_occ += board_get_tile(&t->game_state.board, x + 2, y + 2) != EMPTY;
-
-        if (tot_occ >= 3) {
-            printf("T-Spin ");
-            if (num_rows_cleared == 0) {
-                printf("\n");
-            }
-            t_spin = 1;
-        }
-    }
-
-    // difficult moves are either t spins with > 0 clears or tetris's
-    if (t_spin || num_rows_cleared == 4) {
-        if (t->scorer.status & SCORER_LAST_CLEAR_WAS_HARD) {
-            printf("B2B ");
-            b2b = 1;
-        }
-        t->scorer.status |= SCORER_LAST_CLEAR_WAS_HARD;
-    }
-    else if (num_rows_cleared > 0) {
-        // if this was a clear, but not a hard one, unset the flag
-        t->scorer.status &= ~SCORER_LAST_CLEAR_WAS_HARD;
-    }
-
-
-    if (num_rows_cleared > 0) {
-
-        // if any lines were cleared, we have a combo of at least 1
-        t->scorer.combo_len++;
-        if (t->scorer.combo_len >= 2) {
-            printf("Combo of length %d\n", t->scorer.combo_len);
-        }
-
-
-        int32_t pts;
-
-        TETRIS_ASSERT(num_rows_cleared <= 4);
-        switch (num_rows_cleared) {
-            case 1:
-                printf("Single");
-                pts = t_spin ? (b2b ? 1200 : 800) : 100;
-                break;
-            case 2:
-                printf("Double");
-                pts = t_spin ? (b2b ? 1800 : 1200) : 300;
-                break;
-            case 3:
-                printf("Triple");
-                pts = t_spin ? (b2b ? 2400 : 1600) : 500;
-                break;
-            case 4:
-                printf("Tetris");
-                TETRIS_ASSERT(!t_spin);
-                pts = b2b ? 1200 : 800;
-                break;
-        }
-
-        if (t->scorer.combo_len >= 2) {
-            pts += 50 * t->scorer.combo_len;
-        }
-
-        t->scorer.score += pts;
-
-        printf(" %d\n", pts);
-    }
-    else {
-        // if no lines were cleared, then we have to reset the combo count
-        t->scorer.combo_len = 0;
-
-        if (t_spin) {
-            // 400 points for a t-spin without any lines cleared
-            t->scorer.score += 400;
-        }
-    }
-}
-
-
-
 
 
 
@@ -245,8 +138,6 @@ void tetris_init(tetris_t *t, gl_context *context, float x, float y,
 
     _init_controller(&t->ctrl);
 
-    _init_scorer(&t->scorer);
-
     // note: do not need to initialize clear animator, as it is only accessed
     // when in clear animation state, and will be initialized when we enter
     // that state
@@ -257,14 +148,6 @@ void tetris_init(tetris_t *t, gl_context *context, float x, float y,
 
 }
 
-
-
-void tetris_set_falling_speed(tetris_t *t, double period) {
-    double prev_period = t->game_state.major_tick_count;
-    // set time to same percentage of the way through current tick as before
-    t->game_state.major_tick_time *= period / prev_period;
-    t->game_state.major_tick_count = period;
-}
 
 
 
@@ -350,7 +233,7 @@ static void _piece_placed(tetris_t *t) {
         }
     }
 
-    _scorer_count_move(t, num_rows_cleared, t->game_state.falling_piece.piece_idx);
+    tetris_scorer_count_move(&t->game_state, num_rows_cleared);
 
     if (num_rows_cleared > 0) {
         // if any rows were found to be clear, we have to do the clear animation!
@@ -370,10 +253,11 @@ static void _piece_placed(tetris_t *t) {
 }
 
 
+
 /*
  * to be called whenever a piece has been successfully moved by player control
  */
-static void _control_moved_piece(tetris_t *t, int move_type) {
+static void _control_moved_piece(tetris_t *t) {
 
     // if the ground was hit last frame, then we unset the hit ground last frame
     // flag to give it another frame before it gets stuck (unless we have already
@@ -386,15 +270,8 @@ static void _control_moved_piece(tetris_t *t, int move_type) {
         t->game_state.fp_data.ground_hit_count++;
     }
 
-    // update last action type in scorer
-    if (move_type == MOVE_ROTATE) {
-        t->scorer.status |= SCORER_LAST_ACTION_WAS_ROTATE;
-    }
-    else {
-        t->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
-    }
-
 }
+
 
 
 static void _handle_event(tetris_t *t, key_event *ev) {
@@ -408,35 +285,27 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     // due to one of the following move/rotate methods
     int res = 0;
 
-    // type of move (either MOVE_TRANSLATE or MOVE_ROTATE)
-    int type = 0;
-
     if (ev->action == GLFW_PRESS) {
         switch (ev->key) {
             case GLFW_KEY_LEFT:
                 res = tetris_move_piece(&t->game_state, -1, 0);
-                type = MOVE_TRANSLATE;
                 t->ctrl.keypress_flags |= LEFT_KEY;
                 break;
             case GLFW_KEY_RIGHT:
                 res = tetris_move_piece(&t->game_state, 1, 0);
-                type = MOVE_TRANSLATE;
                 t->ctrl.keypress_flags |= RIGHT_KEY;
                 break;
             case GLFW_KEY_UP:
                 res = _rotate_piece(t, ROTATE_CLOCKWISE);
-                type = MOVE_ROTATE;
                 break;
             case GLFW_KEY_DOWN:
                 t->ctrl.keypress_flags |= DOWN_KEY;
                 break;
             case GLFW_KEY_A:
                 res = _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
-                type = MOVE_ROTATE;
                 break;
             case GLFW_KEY_D:
                 res = _rotate_piece(t, ROTATE_CLOCKWISE);
-                type = MOVE_ROTATE;
                 break;
             case GLFW_KEY_LEFT_SHIFT:
                 tetris_hold_piece(&t->game_state);
@@ -462,8 +331,7 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     // if a piece was successfully moved, then we need to register it in case
     // this has any affect on the falling piece data control
     if (res) {
-        assert(type != 0);
-        _control_moved_piece(t, type);
+        _control_moved_piece(t);
     }
 }
 
@@ -511,9 +379,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
     }
 
     if (res) {
-        // only translations can be repeated by holding down, so the only move
-        // that could have been executed here is a translation
-        _control_moved_piece(t, MOVE_TRANSLATE);
+        _control_moved_piece(t);
     }
 }
 
@@ -543,10 +409,6 @@ void tetris_step(tetris_t *t) {
                     if (advance_status == ADVANCE_FAIL) {
                         // game is over
                         printf("Game over\n");
-                    }
-                    else if (advance_status == ADVANCE_MOVED_PIECE) {
-                        // unset last action was rotate flag in scorer
-                        t->scorer.status &= ~SCORER_LAST_ACTION_WAS_ROTATE;
                     }
                     else if (advance_status == ADVANCE_PLACED_PIECE) {
                         // on a successful place, make this call to check for

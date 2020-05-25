@@ -153,9 +153,36 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
 }
 
 void board_destroy(board_t *b) {
-    shape_destroy(&b->tile_prot);
     free(b->color_idxs);
-    gl_unload_program(&b->p);
+    if (!(b->flags & BOARD_COPY)) {
+        // only original board is responsible for cleaning this up
+        shape_destroy(&b->tile_prot);
+        gl_unload_program(&b->p);
+    }
+}
+
+
+void board_deep_copy(board_t *dst, const board_t *src) {
+
+    uint32_t width = src->width;
+    uint32_t height = src->height;
+    uint32_t color_idxs_len = color_idxs_arr_len(width * height);
+
+    uint32_t * color_idxs =
+        (uint32_t*) malloc(color_idxs_len * sizeof(uint32_t));
+
+    if (color_idxs == NULL) {
+        fprintf(stderr, "Unable to copy board %p\n", src);
+        return;
+    }
+
+    // copy old board over
+    __builtin_memcpy(color_idxs, src->color_idxs,
+            color_idxs_len * sizeof(uint32_t));
+
+    __builtin_memcpy(dst, src, sizeof(board_t));
+    dst->color_idxs = color_idxs;
+    dst->flags |= BOARD_COPY;
 }
 
 

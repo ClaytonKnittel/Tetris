@@ -90,6 +90,84 @@ typedef struct piece_hold {
 
 
 
+
+/*
+ *
+ * scorer handles both the counting of the score (single player) and the
+ * sending of lines to other players (multiplayer)
+ *
+ *
+ * Scoring rules:
+ *
+ * Single player:
+ *
+ *  Single:                  100 * lvl
+ *  Double:                  300 * lvl
+ *  T-Spin:                  400 * lvl
+ *  Triple:                  500 * lvl
+ *  Tetris/T-Spin Single:    800 * lvl
+ *  B2B Tetris /
+ *      B2B T-Spin Single /
+ *      T-Spin Double:      1200 * lvl
+ *  T-Spin Triple:          1600 * lvl
+ *  B2B T-Spin Double:      1800 * lvl
+ *  B2B T-Spin Triple:      2400 * lvl
+ *  Combo:                    50 * Combo len * lvl
+ *
+ *
+ * Single/Double/Triple/Tetris: awarded for clearing 1/2/3/4 total lines
+ *      in a single move (respectively)
+ *
+ * T-Spins:
+ *      - Tetromino being locked is T
+ *      - Last successful movement was a rotate
+ *      - 3 of the 4 squares diagonally adjacent to center of T are occupied
+ *
+ * B2B: this clear and last clear were both "hard" clears, which constitutes
+ *      one of the following:
+ *      - Tetris
+ *      - T-Spin Single/Double/Triple
+ */
+
+
+
+// move types
+#define MOVE_TRANSLATE  0x1
+#define MOVE_ROTATE     0x2
+
+
+// set if the last successful movement was a rotate
+#define SCORER_LAST_ACTION_WAS_ROTATE 0x1
+
+// set if the last clear was a "hard" clear (defined above)
+#define SCORER_LAST_CLEAR_WAS_HARD 0x2
+
+typedef struct scorer {
+    // where the above status flags are put
+    uint8_t status;
+
+
+    // when in single player mode, the current level
+    int8_t level;
+
+    // length of combo
+    int8_t combo_len;
+
+    // for single player mode, the current game score
+    int32_t score;
+} scorer_t;
+
+
+// forward declare
+struct tetris_state;
+
+/*
+ * to be called after a piece is placed. This method takes the game state
+ * struct, the number of rows cleared in the move, and the type of the piece
+ * which was just placed
+ */
+void tetris_scorer_count_move(struct tetris_state *s, int32_t num_rows_cleared);
+
 typedef struct tetris_state {
 
     /*
@@ -104,6 +182,11 @@ typedef struct tetris_state {
      * out for the current falling piece at a later time
      */
     piece_hold hold;
+
+    /*
+     * used in the scoring system of the game
+     */
+    scorer_t scorer;
 
 
     /* status of the game, can be one of
@@ -160,7 +243,19 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
         float y, float screen_width, float screen_height);
 
 
+void tetris_state_destroy(tetris_state *state);
+
+
 void tetris_state_shallow_copy(tetris_state *dst, tetris_state *src);
+
+
+void tetris_state_deep_copy(tetris_state *dst, tetris_state *src);
+
+/*
+ * sets falling speed of the game (period is average number of frames between
+ * major time steps)
+ */
+void tetris_set_falling_speed(tetris_state *s, double period);
 
 
 
