@@ -270,10 +270,10 @@ int board_can_place_piece(board_t *b, piece_t piece) {
 
     int piece_placed = 0;
 
-    piece_placed |= !board_get_tile(b, p_x1, p_y1);
-    piece_placed |= !board_get_tile(b, p_x2, p_y2);
-    piece_placed |= !board_get_tile(b, p_x3, p_y3);
-    piece_placed |= !board_get_tile(b, p_x4, p_y4);
+    piece_placed |= p_y1 < b->height && !board_get_tile(b, p_x1, p_y1);
+    piece_placed |= p_y2 < b->height && !board_get_tile(b, p_x2, p_y2);
+    piece_placed |= p_y3 < b->height && !board_get_tile(b, p_x3, p_y3);
+    piece_placed |= p_y4 < b->height && !board_get_tile(b, p_x4, p_y4);
 
     return piece_placed;
 }
