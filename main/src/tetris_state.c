@@ -68,9 +68,9 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
         if (tot_occ >= 3) {
             if (print) {
                 printf("T-Spin ");
-            }
-            if (num_rows_cleared == 0) {
-                printf("\n");
+                if (num_rows_cleared == 0) {
+                    printf("\n");
+                }
             }
             t_spin = 1;
         }
