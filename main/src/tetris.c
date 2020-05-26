@@ -233,7 +233,7 @@ static void _piece_placed(tetris_t *t) {
         }
     }
 
-    tetris_scorer_count_move(&t->game_state, num_rows_cleared);
+    tetris_scorer_count_move(&t->game_state, num_rows_cleared, 1);
 
     if (num_rows_cleared > 0) {
         // if any rows were found to be clear, we have to do the clear animation!

@@ -2,7 +2,6 @@ include common.mk
 
 .PHONY: all
 all: dirs glib main
-	echo $(CFLAGS)
 
 .PHONY: dirs
 dirs:

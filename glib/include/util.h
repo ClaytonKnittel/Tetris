@@ -9,10 +9,16 @@
 #include <stdio.h>
 
 
-/*#include <syslog.h>
+#ifdef BUILD
+
+// when in production build mode, change prints to syslogs
+
+#include <syslog.h>
 
 #define fprintf(file, ...) syslog(LOG_ALERT, __VA_ARGS__)
-#define printf(...) syslog(LOG_ALERT, __VA_ARGS__)*/
+#define printf(...) syslog(LOG_ALERT, __VA_ARGS__)
+
+#endif /* BUILD */
 
 
 // reinterpret cast of int to float (keep bits same)

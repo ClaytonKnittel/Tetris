@@ -18,6 +18,10 @@ typedef struct linear_heuristic_agent {
     // number of turns in the future to search to (must be at least 1)
     int depth;
 
+    // consider only best n possible landing locations according to heuristic,
+    // lowers branching factor
+    int best_n;
+
     // internal state of AI, which is updated whenever a new falling piece is
     // grabbed or the path of a falling piece is interrupted/corrupted to where
     // the next action that should be performed is no longer clear

@@ -18,7 +18,11 @@
 
 // number of moves the AI is to look ahead to (1 means only think about current
 // move)
-#define DEFAULT_DEPTH 2
+#define DEFAULT_DEPTH 3
+
+// consider only best n possible landing locations according to heuristic,
+// lowers branching factor
+#define DEFAULT_BEST_N 5
 
 
 
@@ -26,6 +30,7 @@ lha_t * linear_heuristic_agent_init() {
     lha_t * agent = (lha_t *) calloc(1, sizeof(lha_t));
 
     agent->depth = DEFAULT_DEPTH;
+    agent->best_n = DEFAULT_BEST_N;
 
     return agent;
 }
@@ -439,7 +444,90 @@ state_node * _construct_path_to(state_t *s, state_node *node) {
 }
 
 
+static int _at_top_level(lha_t *a, int depth) {
+    return depth == a->depth;
+}
+
+
 static float _find_best_path(lha_t *a, tetris_state *s, int depth);
+
+
+
+/*
+ * make a deep copy of the board and recursively call find best path
+ */
+static float _depth_find(lha_t *a, state_t *s, state_node *fs, int depth) {
+    tetris_state tmp;
+
+    // make deep copy of the game state at state_node fs
+    tetris_state_deep_copy(&tmp, &fs->game_state);
+
+    // save the current falling piece, since it will be changed
+    piece_t old_fp = tmp.falling_piece;
+
+    // put the falling piece on the board
+    board_place_piece(&tmp.board, old_fp);
+    // clear any lines cleared by this piece
+    tetris_clear_lines(&tmp);
+    // fetch the next falling piece
+    tetris_get_next_falling_piece_transient(&tmp);
+
+    // recursively call find best path on the new state
+    float h = _find_best_path(a, &tmp, depth - 1);
+
+    tetris_state_destroy(&tmp);
+
+    return h;
+}
+
+
+static state_node * _find_best_n(state_node * falling_spots, int n) {
+    struct sh {
+        state_node * node;
+        float h;
+    } * best_n;
+
+    best_n = (struct sh *) calloc(n, sizeof(struct sh));
+
+    for (state_node * fs = falling_spots; fs != LIST_END; fs = fs->next) {
+        float h = heuristic(&fs->game_state);
+
+        for (uint32_t i = 0; i < n; i++) {
+            struct sh * tmp = &best_n[i];
+
+            if (tmp->node == NULL) {
+                // take the spot
+                tmp->node = fs;
+                tmp->h = h;
+                break;
+            }
+            else if (tmp->h < h) {
+                // supercede this spot
+                state_node * swp = fs;
+                do {
+                    struct sh old = best_n[i];
+
+                    best_n[i].node = swp;
+                    best_n[i].h = h;
+
+                    swp = old.node;
+                    h = old.h;
+                    i++;
+                } while (i < n && swp != NULL);
+            }
+        }
+    }
+
+    // link up best n in a list
+    uint32_t i;
+    for (i = 0; i < n - 1 && best_n[i + 1].node != NULL; i++) {
+        best_n[i].node->next = best_n[i + 1].node;
+    }
+    best_n[i].node->next = LIST_END;
+
+    return best_n[0].node;
+}
+
 
 /*
  * go through list of possible landing spots and choose which one makes
@@ -449,49 +537,60 @@ static float _find_best_path(lha_t *a, tetris_state *s, int depth);
  */
 static float _choose_best_dst(lha_t *a, state_t *s, int depth) {
 
-    tetris_state tmp;
-
     state_node * best = NULL;
     float max_h = -INFINITY;
 
-    for (state_node * fs = s->falling_spots; fs != LIST_END; fs = fs->next) {
+    if (a->best_n == -1) {
 
-        //if (a != NULL) {
-            //printf("%llu\n", fs->game_state.time);
-            //print_board(&fs->game_state);
-        //}
+        for (state_node * fs = s->falling_spots; fs != LIST_END; fs = fs->next) {
 
-        float h;
-        if (depth == 1) {
-            h = heuristic(&fs->game_state);
+            float h;
+            if (depth == 1) {
+                h = heuristic(&fs->game_state);
+            }
+            else {
+                h = _depth_find(a, s, fs, depth);
+            }
+
+            /*if (_at_top_level(a, depth)) {
+                printf("%f\n", h);
+                print_board(&fs->game_state);
+            }*/
+
+            if (h > max_h) {
+                max_h = h;
+                best = fs;
+            }
         }
-        else {
-            // make deep copy of the game state at state_node fs
-            tetris_state_deep_copy(&tmp, &fs->game_state);
+    }
+    else {
+        // find best n places to land
+        state_node * best_n = _find_best_n(s->falling_spots, a->best_n);
 
-            // save the current falling piece, since it will be changed
-            piece_t old_fp = tmp.falling_piece;
+        for (state_node * fs = best_n; fs != LIST_END; fs = fs->next) {
 
-            // put the falling piece on the board
-            board_place_piece(&tmp.board, old_fp);
-            // clear any lines cleared by this piece
-            tetris_clear_lines(&tmp);
-            // fetch the next falling piece
-            tetris_get_next_falling_piece_transient(&tmp);
+            float h;
+            if (depth == 1) {
+                h = heuristic(&fs->game_state);
+            }
+            else {
+                h = _depth_find(a, s, fs, depth);
+            }
 
-            // recursively call find best path on the new state
-            h = _find_best_path(NULL, &tmp, depth - 1);
+            /*if (_at_top_level(a, depth)) {
+                printf("%f\n", h);
+                print_board(&fs->game_state);
+            }*/
 
-            tetris_state_destroy(&tmp);
-        }
+            if (h > max_h) {
+                max_h = h;
+                best = fs;
+            }
 
-        if (h > max_h) {
-            max_h = h;
-            best = fs;
         }
     }
 
-    if (a != NULL && best != NULL) {
+    if (_at_top_level(a, depth) && best != NULL) {
         state_node * path = _construct_path_to(s, best);
         a->__int_state.action_list = path;
     
@@ -582,7 +681,7 @@ static float _find_best_path(lha_t *a, tetris_state *s, int depth) {
     // on heuristic
     float ret = _choose_best_dst(a, &state, depth);
 
-    if (a != NULL) {
+    if (_at_top_level(a, depth)) {
         // will be freed once the list is no longer in use
         a->__int_state.to_free = state.m;
     }

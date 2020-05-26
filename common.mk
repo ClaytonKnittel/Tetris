@@ -19,15 +19,23 @@ TDIR=$(BDIR)
 IFLAGS=-I$(GAMEDIR)/include -I$(LIBDIR)/include $(shell pkg-config --cflags freetype2)
 LFLAGS=-L$(LDIR)
 
-#opengl libraries
+# opengl libraries
 GLLIBS=-lglew.2.1 -lglfw.3.3 -framework OpenGL
 
+# set when in debug mode
 DEBUG=1
+
+# set when building for production
+BUILD=0
 
 ifeq ($(DEBUG), 0)
 CFLAGS=-O3 -Wall -Wno-unused-function -MMD -MP
 else
 CFLAGS=-O0 -Wall -Wno-unused-function -MMD -MP -g3 -DDEBUG
+endif
+
+ifeq ($(BUILD), 1)
+CFLAGS=$(CFLAGS) -DBUILD
 endif
 
 # -flto allows link-time optimization (like function inlining)

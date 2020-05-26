@@ -41,7 +41,8 @@ static void _init_scorer(scorer_t *s) {
  * struct, the number of rows cleared in the move, and the type of the piece
  * which was just placed
  */
-void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared) {
+void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
+        int print) {
 
     int t_spin = 0;
     int b2b = 0;
@@ -65,7 +66,9 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared) {
         tot_occ += board_get_tile(&s->board, x + 2, y + 2) != EMPTY;
 
         if (tot_occ >= 3) {
-            printf("T-Spin ");
+            if (print) {
+                printf("T-Spin ");
+            }
             if (num_rows_cleared == 0) {
                 printf("\n");
             }
@@ -76,7 +79,9 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared) {
     // difficult moves are either t spins with > 0 clears or tetris's
     if (t_spin || num_rows_cleared == 4) {
         if (s->scorer.status & SCORER_LAST_CLEAR_WAS_HARD) {
-            printf("B2B ");
+            if (print) {
+                printf("B2B ");
+            }
             b2b = 1;
         }
         s->scorer.status |= SCORER_LAST_CLEAR_WAS_HARD;
@@ -92,7 +97,9 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared) {
         // if any lines were cleared, we have a combo of at least 1
         s->scorer.combo_len++;
         if (s->scorer.combo_len >= 2) {
-            printf("Combo of length %d\n", s->scorer.combo_len);
+            if (print) {
+                printf("Combo of length %d\n", s->scorer.combo_len);
+            }
         }
 
 
@@ -101,19 +108,27 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared) {
         TETRIS_ASSERT(num_rows_cleared <= 4);
         switch (num_rows_cleared) {
             case 1:
-                printf("Single");
+                if (print) {
+                    printf("Single");
+                }
                 pts = t_spin ? (b2b ? 1200 : 800) : 100;
                 break;
             case 2:
-                printf("Double");
+                if (print) {
+                    printf("Double");
+                }
                 pts = t_spin ? (b2b ? 1800 : 1200) : 300;
                 break;
             case 3:
-                printf("Triple");
+                if (print) {
+                    printf("Triple");
+                }
                 pts = t_spin ? (b2b ? 2400 : 1600) : 500;
                 break;
             case 4:
-                printf("Tetris");
+                if (print) {
+                    printf("Tetris");
+                }
                 TETRIS_ASSERT(!t_spin);
                 pts = b2b ? 1200 : 800;
                 break;
@@ -125,7 +140,9 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared) {
 
         s->scorer.score += pts;
 
-        printf(" %d\n", pts);
+        if (print) {
+            printf(" %d\n", pts);
+        }
     }
     else {
         // if no lines were cleared, then we have to reset the combo count
@@ -502,7 +519,7 @@ int tetris_clear_lines(tetris_state *state) {
     }
 
     // register the line clear to the scorer
-    tetris_scorer_count_move(state, num_rows_cleared);
+    tetris_scorer_count_move(state, num_rows_cleared, 0);
 
     return num_rows_cleared;
 }

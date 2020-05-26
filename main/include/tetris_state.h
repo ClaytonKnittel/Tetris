@@ -166,7 +166,8 @@ struct tetris_state;
  * struct, the number of rows cleared in the move, and the type of the piece
  * which was just placed
  */
-void tetris_scorer_count_move(struct tetris_state *s, int32_t num_rows_cleared);
+void tetris_scorer_count_move(struct tetris_state *s, int32_t num_rows_cleared,
+        int print);
 
 typedef struct tetris_state {
 
