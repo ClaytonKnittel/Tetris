@@ -87,6 +87,11 @@ static float heuristic(tetris_state *s) {
     uint8_t heights[TETRIS_WIDTH] = { 0 };
 
 
+    if (tetris_game_is_over(s)) {
+        return -INFINITY;
+    }
+
+
     for (int8_t col = 0; col < TETRIS_WIDTH; col++) {
         for (int8_t row = TETRIS_HEIGHT - 1; row >= 0; row--) {
             if (_get_tile(s, col, row) && heights[col] == 0) {

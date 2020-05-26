@@ -40,6 +40,7 @@ int main(int argc, char *argv[]) {
     gl_context c;
     game_t g;
     font_t font;
+    uint32_t level = 0;
 
     openlog("tetris", LOG_CONS, LOG_USER);
 
@@ -51,7 +52,7 @@ int main(int argc, char *argv[]) {
     struct ai *ai = NULL;
 
     int opt;
-    while ((opt = getopt(argc, argv, "p:a:s:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:a:s:l:")) != -1) {
         switch(opt) {
             case 'a':
                 // use AI
@@ -71,6 +72,15 @@ int main(int argc, char *argv[]) {
                     return usage(argv);
                 }
                 break;
+            case 'l':
+                // set the level
+                level = strtoul(optarg, &buf, 10);
+                if (*optarg == '\0' || *buf != '\0') {
+                    // invalid number
+                    fprintf(stderr, "%s is not a valid base 10 unsigned "
+                            "number\n", optarg);
+                    return usage(argv);
+                }
             case 'p':
                 // for MacOS compatibility (gives sn_0_...)
                 break;
@@ -97,6 +107,8 @@ int main(int argc, char *argv[]) {
     else {
         game_init(&g, SHOW_ALL, &c, &font);
     }
+
+    tetris_set_level(&g.t.game_state, level);
 
     while (!gl_should_exit(&c)) {
         game_tick(&g);

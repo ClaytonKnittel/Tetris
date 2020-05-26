@@ -165,8 +165,6 @@ typedef struct scorer {
     // level
     int32_t cleared_lines_threshhold;
 
-    // the level that the game started on
-    int32_t start_level;
     // game level, which determines game speed
     int32_t level;
 } scorer_t;
@@ -268,11 +266,21 @@ void tetris_state_shallow_copy(tetris_state *dst, tetris_state *src);
 
 void tetris_state_deep_copy(tetris_state *dst, tetris_state *src);
 
+
+int tetris_game_is_over(tetris_state *state);
+
+
 /*
  * sets falling speed of the game (period is average number of frames between
  * major time steps)
  */
 void tetris_set_falling_speed(tetris_state *s, double period);
+
+
+/*
+ * set level of the game (to be called during initialization only)
+ */
+void tetris_set_level(tetris_state *s, uint32_t level);
 
 
 

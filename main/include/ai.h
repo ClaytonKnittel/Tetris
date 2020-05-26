@@ -13,7 +13,7 @@
 // minimum number of frames between successive inputs from AI allowed (to make
 // it more fair, i.e. can't move a tile all the way across the screen in 5
 // frames)
-#define AI_INPUT_DELAY 4
+#define AI_INPUT_DELAY 2
 
 
 struct ai {

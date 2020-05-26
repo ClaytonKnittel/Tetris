@@ -141,6 +141,7 @@ void game_render(game_t *g) {
 
     if (flags & SHOW_SCORE) {
         scoreboard_set_score(&g->sb, g->t.game_state.scorer.score);
+        scoreboard_set_level(&g->sb, g->t.game_state.scorer.level);
         scoreboard_draw(&g->sb);
     }
 }

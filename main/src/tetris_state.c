@@ -34,12 +34,8 @@ static void _init_piece_hold(piece_hold *p) {
 
 static void _init_scorer(scorer_t *s) {
     __builtin_memset(s, 0, sizeof(scorer_t));
-    s->start_level = 0;
     s->level = 0;
-
-    s->cleared_lines_threshhold = s->start_level < 10 ?
-        s->start_level * 10 + 10 :
-        MIN(200, MAX(100, s->start_level * 10 - 50));
+    s->cleared_lines_threshhold = LINE_CLEAR_THRESH_INC;
 }
 
 
@@ -48,7 +44,7 @@ static float _level_drop_rate(uint32_t level) {
         return 48 - 5 * level;
     }
     else if (level < 22) {
-        return 6 - (level / 3 - 3);
+        return 6 - ((level + 2) / 3 - 3);
     }
     else if (level < 29) {
         return 2;
@@ -161,7 +157,7 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
             pts += 50 * s->scorer.combo_len;
         }
 
-        s->scorer.score += pts;
+        s->scorer.score += pts * (s->scorer.level + 1);
 
         if (print) {
             printf(" %d\n", pts);
@@ -173,7 +169,7 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
 
         if (t_spin) {
             // 400 points for a t-spin without any lines cleared
-            s->scorer.score += 400;
+            s->scorer.score += 400 * (s->scorer.level + 1);
         }
     }
 
@@ -227,6 +223,8 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
 
     float init_drop_rate = _level_drop_rate(state->scorer.level);
 
+    // to make set falling speed happy
+    state->major_tick_count = 1.f;
     state->major_tick_time  = 0.f;
     tetris_set_falling_speed(state, init_drop_rate);
 
@@ -253,20 +251,38 @@ void tetris_state_deep_copy(tetris_state *dst, tetris_state *src) {
 }
 
 
+int tetris_game_is_over(tetris_state *state) {
+    return state->state == GAME_OVER;
+}
+
+
 void tetris_set_falling_speed(tetris_state *s, double period) {
     double prev_period = s->major_tick_count;
     // set time to same percentage of the way through current tick as before
     s->major_tick_time *= period / prev_period;
     s->major_tick_count = period;
 
-    if (period <= 2 * DESIRED_MINOR_TICK_SPEED) {
-        s->minor_tick_count = period / 2;
+    uint32_t divisor =
+        (uint32_t) roundf(period / DESIRED_MINOR_TICK_SPEED);
+    if (divisor == 0) {
+        divisor = (uint32_t) roundf(DESIRED_MINOR_TICK_SPEED / period);
+        s->minor_tick_count = period * divisor;
     }
     else {
-        uint32_t divisor =
-            (uint32_t) roundf(period / DESIRED_MINOR_TICK_SPEED);
         s->minor_tick_count = period / divisor;
     }
+
+    printf("mtc: %f\n", s->minor_tick_count);
+}
+
+
+void tetris_set_level(tetris_state *s, uint32_t level) {
+    s->scorer.level = level;
+    tetris_set_falling_speed(s, _level_drop_rate(level));
+
+    s->scorer.cleared_lines_threshhold = level < 10 ?
+        level * 10 + 10 :
+        MIN(200, MAX(100, level * 10 - 50));
 }
 
 
@@ -567,20 +583,22 @@ int tetris_clear_lines(tetris_state *state) {
 
 
 static uint64_t _ticks_to_next(float tick_count, float tick_time) {
-    return (uint64_t) ceil(tick_count - tick_time);
+    int64_t res = (int64_t) ceil(tick_count - tick_time);
+    return (uint64_t) MAX(res, 1);
 }
 
 
 void tetris_tick(tetris_state *s) {
     s->time++;
 
+    float thresh = MAX(s->major_tick_count, s->minor_tick_count);
     s->major_tick_time++;
-    if (s->major_tick_time >= s->major_tick_count) {
-        s->major_tick_time -= s->major_tick_count;
+    while (s->major_tick_time >= thresh) {
+        s->major_tick_time -= thresh;
     }
 
     s->key_callback_time++;
-    if (s->key_callback_time >= s->key_callback_count) {
+    while (s->key_callback_time >= s->key_callback_count) {
         s->key_callback_time -= s->key_callback_count;
     }
 }
@@ -589,9 +607,10 @@ void tetris_tick(tetris_state *s) {
 static void _tick_by(tetris_state *s, uint64_t ticks) {
     s->time += ticks;
 
+    float thresh = MAX(s->major_tick_count, s->minor_tick_count);
     s->major_tick_time += ticks;
-    while (s->major_tick_time >= s->major_tick_count) {
-        s->major_tick_time -= s->major_tick_count;
+    while (s->major_tick_time >= thresh) {
+        s->major_tick_time -= thresh;
     }
 
     s->key_callback_time += ticks;
@@ -626,8 +645,7 @@ int tetris_advance_by_transient(tetris_state *state, uint64_t *ticks) {
             int res = tetris_advance_transient(state);
             t -= diff;
 
-            if (res == ADVANCE_PLACED_PIECE ||
-                    res == ADVANCE_FAIL) {
+            if (res == ADVANCE_PLACED_PIECE || res == ADVANCE_FAIL) {
                 // if either a piece was placed or the game ended, we stop
                 // advancing
                 ret = 1;
@@ -674,7 +692,8 @@ int tetris_advance_until_drop_transient(tetris_state *state) {
 
 
 int tetris_is_major_time_step(tetris_state *s) {
-    return s->major_tick_time < 1;
+    float major_tick_time = fmod(s->major_tick_time, s->major_tick_count);
+    return major_tick_time < 1;
 }
 
 int tetris_is_minor_time_step(tetris_state *s) {
