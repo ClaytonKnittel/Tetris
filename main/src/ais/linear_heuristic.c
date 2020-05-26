@@ -148,17 +148,14 @@ static float heuristic(tetris_state *s) {
 
 
 typedef struct state_node {
-    union {
-        // number of ticks to get to this position, i.e. dist, is the key in node
-        // this value is used to keep track of when it is a major time step
-        heap_node node;
-
-        struct {
-            uint64_t __unused_[2];
-            // time at which this action is to be performed, aliases key in node
-            uint64_t time;
-        };
-    };
+    /*
+     * number of ticks to get to this position, i.e. dist, is the key in node
+     * this value is used to keep track of when it is a major time step
+     *
+     * we put the time of the state in the upper 56 bits of the key in the heap, and
+     * we put the number of keystrokes made along the path in the lower 8 bits
+     */
+    heap_node node;
 
     // snapshot of the game state at this particular state node
     tetris_state game_state;
@@ -175,6 +172,11 @@ typedef struct state_node {
     // singly linked list of possible falling spots
     struct state_node * next;
 } state_node;
+
+
+static uint64_t get_node_time(state_node * node) {
+    return ((uint64_t) node->node.key) >> 8;
+}
 
 
 static state_node * __heap_node_to_state_node(heap_node * node) {
@@ -250,12 +252,32 @@ static void __try_decrease(state_t * s, tetris_state * new_state,
 
     state_node * node = __find_state_node(s, new_state);
 
-    if (node->time == INFTY) {
-        HEAP_NODE_SET(&node->node, new_time);
+    // we will be using lower 8 bits of key to store number of keystrokes
+    TETRIS_ASSERT(new_time < 0x0080000000000000);
+
+    uint8_t parent_key_strokes;
+    if (parent_idx == -1) {
+        parent_key_strokes = 0;
+    }
+    else {
+        state_node * parent = &s->m[parent_idx];
+        parent_key_strokes = (parent->node.key & 0xff);
+
+        // if the action is a keystroke (i.e. not a wait), then add one to the
+        // key stroke count
+        parent_key_strokes += (action != WAIT);
+
+        TETRIS_ASSERT(parent_key_strokes < 0xff);
+    }
+
+    uint64_t key_val = (new_time << 8) | parent_key_strokes;
+
+    if (node->node.key == INFTY) {
+        HEAP_NODE_SET(&node->node, key_val);
         heap_insert(&s->h, &node->node);
     }
-    else if (node->time > new_time) {
-        heap_decrease_key(&s->h, &node->node, new_time);
+    else if (node->node.key > key_val) {
+        heap_decrease_key(&s->h, &node->node, key_val);
     }
     else {
         return;
@@ -669,7 +691,10 @@ static float _find_best_path(lha_t *a, tetris_state *s, int depth) {
 
     // and add its node to the heap
     state_node * fp_node = __find_state_node(&state, s);
-    HEAP_NODE_SET(&fp_node->node, state.t0);
+
+    // we will be using lower 8 bits of key to store number of keystrokes
+    TETRIS_ASSERT(state.t0 < 0x0080000000000000);
+    HEAP_NODE_SET(&fp_node->node, state.t0 << 8);
 
     // copy the game state into the first node
     tetris_state_shallow_copy(&fp_node->game_state, s);
