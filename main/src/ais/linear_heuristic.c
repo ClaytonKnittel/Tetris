@@ -18,11 +18,11 @@
 
 // number of moves the AI is to look ahead to (1 means only think about current
 // move)
-#define DEFAULT_DEPTH 3
+#define DEFAULT_DEPTH 4
 
 // consider only best n possible landing locations according to heuristic,
 // lowers branching factor
-#define DEFAULT_BEST_N 5
+#define DEFAULT_BEST_N 4
 
 
 

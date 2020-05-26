@@ -47,7 +47,7 @@ int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
     }
 
     if (flags & SHOW_SCORE) {
-        scoreboard_init(sb, font, .5f, .45f, .5f, .15f);
+        scoreboard_init(sb, font, .5f, .45f, .5f, .23f);
     }
 
     if (flags & SHOW_UP_NEXT) {

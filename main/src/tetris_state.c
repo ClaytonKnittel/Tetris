@@ -34,7 +34,30 @@ static void _init_piece_hold(piece_hold *p) {
 
 static void _init_scorer(scorer_t *s) {
     __builtin_memset(s, 0, sizeof(scorer_t));
+    s->start_level = 0;
+    s->level = 0;
+
+    s->cleared_lines_threshhold = s->start_level < 10 ?
+        s->start_level * 10 + 10 :
+        MIN(200, MAX(100, s->start_level * 10 - 50));
 }
+
+
+static float _level_drop_rate(uint32_t level) {
+    if (level < 9) {
+        return 48 - 5 * level;
+    }
+    else if (level < 22) {
+        return 6 - (level / 3 - 3);
+    }
+    else if (level < 29) {
+        return 2;
+    }
+    else {
+        return 1;
+    }
+}
+
 
 /*
  * to be called after a piece is placed. This method takes the game state
@@ -153,6 +176,15 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
             s->scorer.score += 400;
         }
     }
+
+    s->scorer.cleared_lines += num_rows_cleared;
+
+    if (s->scorer.cleared_lines > s->scorer.cleared_lines_threshhold) {
+        s->scorer.cleared_lines_threshhold += LINE_CLEAR_THRESH_INC;
+        s->scorer.level++;
+
+        tetris_set_falling_speed(s, _level_drop_rate(s->scorer.level));
+    }
 }
 
 
@@ -193,11 +225,10 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
     // initialize time to 0
     state->time = 0LU;
 
-    state->major_tick_count = 16.f;
-    state->major_tick_time  = 0.f;
+    float init_drop_rate = _level_drop_rate(state->scorer.level);
 
-    state->minor_tick_count = 4.f;
-    state->minor_tick_time  = 0.f;
+    state->major_tick_time  = 0.f;
+    tetris_set_falling_speed(state, init_drop_rate);
 
     state->key_callback_count = DEFAULT_HELD_KEY_PERIOD;
     state->key_callback_time  = 0.f;
@@ -227,6 +258,15 @@ void tetris_set_falling_speed(tetris_state *s, double period) {
     // set time to same percentage of the way through current tick as before
     s->major_tick_time *= period / prev_period;
     s->major_tick_count = period;
+
+    if (period <= 2 * DESIRED_MINOR_TICK_SPEED) {
+        s->minor_tick_count = period / 2;
+    }
+    else {
+        uint32_t divisor =
+            (uint32_t) roundf(period / DESIRED_MINOR_TICK_SPEED);
+        s->minor_tick_count = period / divisor;
+    }
 }
 
 
@@ -539,11 +579,6 @@ void tetris_tick(tetris_state *s) {
         s->major_tick_time -= s->major_tick_count;
     }
 
-    s->minor_tick_time++;
-    if (s->minor_tick_time >= s->minor_tick_count) {
-        s->minor_tick_time -= s->minor_tick_count;
-    }
-
     s->key_callback_time++;
     if (s->key_callback_time >= s->key_callback_count) {
         s->key_callback_time -= s->key_callback_count;
@@ -557,11 +592,6 @@ static void _tick_by(tetris_state *s, uint64_t ticks) {
     s->major_tick_time += ticks;
     while (s->major_tick_time >= s->major_tick_count) {
         s->major_tick_time -= s->major_tick_count;
-    }
-
-    s->minor_tick_time += ticks;
-    while (s->minor_tick_time >= s->minor_tick_count) {
-        s->minor_tick_time -= s->minor_tick_count;
     }
 
     s->key_callback_time += ticks;
@@ -648,7 +678,8 @@ int tetris_is_major_time_step(tetris_state *s) {
 }
 
 int tetris_is_minor_time_step(tetris_state *s) {
-    return s->minor_tick_time < 1;
+    float minor_tick_time = fmod(s->major_tick_time, s->minor_tick_count);
+    return minor_tick_time < 1;
 }
 
 int tetris_is_key_callback_step(tetris_state *s) {
@@ -668,8 +699,9 @@ void tetris_advance_to_next_action(tetris_state *s) {
 int tetris_advance_to_next_minor_time_step(tetris_state *s) {
     int ret;
     do {
+        float minor_tick_time = fmod(s->major_tick_time, s->minor_tick_count);
         uint64_t ticks_to_next_minor_ts =
-            _ticks_to_next(s->minor_tick_count, s->minor_tick_time);
+            _ticks_to_next(s->minor_tick_count, minor_tick_time);
         ret = tetris_advance_by_transient(s, &ticks_to_next_minor_ts);
     } while(ret == 0 && tetris_is_major_time_step(s));
 

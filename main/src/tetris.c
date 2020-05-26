@@ -390,8 +390,6 @@ void tetris_step(tetris_t *t) {
     int advance_status;
     key_event ev;
 
-    tetris_tick(&t->game_state);
-
     // first process key events
     while (key_event_queue_pop(&t->kq, &ev)) {
         _handle_event(t, &ev);
@@ -442,6 +440,8 @@ void tetris_step(tetris_t *t) {
             // cannot possibly get here
             __builtin_unreachable();
     }
+
+    tetris_tick(&t->game_state);
 }
 
 

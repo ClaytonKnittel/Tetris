@@ -24,9 +24,10 @@
  */
 #define HIT_GROUND_LAST_FRAME 0x1
 
-// how much faster fast falling is compared to normal falling (must be an
-// integer)
-#define FAST_FALLING_SPEEDUP 5
+// desired fast falling speed, will try to get as close to this as possible
+// (but we require fast falling delay to be an integer quotient of gravity
+// delay)
+#define DESIRED_MINOR_TICK_SPEED 5
 
 // default avg. # frames between callbacks to held-down keys
 #define DEFAULT_HELD_KEY_PERIOD 4.
@@ -142,19 +143,32 @@ typedef struct piece_hold {
 // set if the last clear was a "hard" clear (defined above)
 #define SCORER_LAST_CLEAR_WAS_HARD 0x2
 
+
+// amount by which to increment cleared_lines_threshhold each time a level is
+// passed
+#define LINE_CLEAR_THRESH_INC 10
+
 typedef struct scorer {
     // where the above status flags are put
     uint8_t status;
 
-
-    // when in single player mode, the current level
-    int8_t level;
 
     // length of combo
     int8_t combo_len;
 
     // for single player mode, the current game score
     int32_t score;
+
+    // number of lines that have been cleared since the start of the level
+    int32_t cleared_lines;
+    // number of lines needed to be cleared before advancing onto the next
+    // level
+    int32_t cleared_lines_threshhold;
+
+    // the level that the game started on
+    int32_t start_level;
+    // game level, which determines game speed
+    int32_t level;
 } scorer_t;
 
 
@@ -228,8 +242,10 @@ typedef struct tetris_state {
     // a frame is counted if (time / tick_count) 
     float major_tick_count;
     float major_tick_time;
+    // minor tick count is always an integer quotient of major tick count, so
+    // we use major tick time mod minor tick count to check if it is a minor
+    // time step
     float minor_tick_count;
-    float minor_tick_time;
 
     // frames between calls to key callbacks (i.e. how fast a held down key
     // will be pressed)

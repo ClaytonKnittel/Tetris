@@ -14,6 +14,7 @@ typedef struct scoreboard {
     font_t *f;
 
     int32_t score;
+    uint32_t level;
 } scoreboard;
 
 
@@ -26,6 +27,8 @@ void scoreboard_destroy(scoreboard *s);
 
 
 void scoreboard_set_score(scoreboard *s, uint32_t score);
+
+void scoreboard_set_level(scoreboard *s, uint32_t level);
 
 
 void scoreboard_draw(scoreboard *s);
