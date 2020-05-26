@@ -41,9 +41,9 @@
 #define MAX_MIN_H_INC_TIME 10
 
 
-// fraction of major time step between a ground hit detection and the
+// ticks to wait between a ground hit detection and the
 // time the ground hit will be tested again
-#define CTRL_HIT_GROUND_LAST_DELAY .4f
+#define CTRL_HIT_GROUND_LAST_DELAY 10
 
 
 typedef struct falling_piece_data {

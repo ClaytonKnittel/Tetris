@@ -272,7 +272,6 @@ void tetris_set_falling_speed(tetris_state *s, double period) {
         s->minor_tick_count = period / divisor;
     }
 
-    printf("mtc: %f and %f\n", s->major_tick_count, s->minor_tick_count);
 }
 
 
@@ -583,7 +582,12 @@ int tetris_clear_lines(tetris_state *state) {
 
 
 static uint64_t _ticks_to_next(float tick_count, float tick_time) {
-    int64_t res = (int64_t) ceil(tick_count - tick_time);
+    if (tick_time < 0) {
+        // negative values are "dead time", they are used for short pauses in
+        // gameplay
+        return (uint64_t) ceil(-tick_time);
+    }
+    int64_t res = (int64_t) ceil(tick_count - fmod(tick_time, tick_count));
     return (uint64_t) MAX(res, 1);
 }
 
@@ -693,12 +697,12 @@ int tetris_advance_until_drop_transient(tetris_state *state) {
 
 int tetris_is_major_time_step(tetris_state *s) {
     float major_tick_time = fmod(s->major_tick_time, s->major_tick_count);
-    return major_tick_time < 1;
+    return s->major_tick_time >= 0 && major_tick_time < 1;
 }
 
 int tetris_is_minor_time_step(tetris_state *s) {
     float minor_tick_time = fmod(s->major_tick_time, s->minor_tick_count);
-    return minor_tick_time < 1;
+    return s->major_tick_time >= 0 && minor_tick_time < 1;
 }
 
 int tetris_is_key_callback_step(tetris_state *s) {
@@ -717,12 +721,21 @@ void tetris_advance_to_next_action(tetris_state *s) {
 
 int tetris_advance_to_next_minor_time_step(tetris_state *s) {
     int ret;
+
+    if (s->major_tick_count <= s->minor_tick_count) {
+        // if every minor tick happens on a major tick, then there are no minor
+        // time steps which are not major time steps
+        return 1;
+    }
+
     do {
         float minor_tick_time = fmod(s->major_tick_time, s->minor_tick_count);
         uint64_t ticks_to_next_minor_ts =
             _ticks_to_next(s->minor_tick_count, minor_tick_time);
         ret = tetris_advance_by_transient(s, &ticks_to_next_minor_ts);
     } while(ret == 0 && tetris_is_major_time_step(s));
+
+    TETRIS_ASSERT(tetris_is_minor_time_step(s) || ret == 1);
 
     return ret;
 }
@@ -804,8 +817,11 @@ int tetris_advance_transient(tetris_state *s) {
             // artificially advance time forward to
             // CTRL_HIT_GROUND_LAST_DELAY% of major time step delay before
             // the next major time step
-            s->major_tick_time +=
-                CTRL_HIT_GROUND_LAST_DELAY * s->major_tick_count;
+            s->major_tick_time = fmod(s->major_tick_time, s->major_tick_count) -
+                CTRL_HIT_GROUND_LAST_DELAY;
+
+            // don't let it go negative
+            //s->major_tick_time = MAX(s->major_tick_time, 0);
 
             return ADVANCE_STALLED;
         }
