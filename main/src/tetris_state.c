@@ -272,7 +272,7 @@ void tetris_set_falling_speed(tetris_state *s, double period) {
         s->minor_tick_count = period / divisor;
     }
 
-    printf("mtc: %f\n", s->minor_tick_count);
+    printf("mtc: %f and %f\n", s->major_tick_count, s->minor_tick_count);
 }
 
 
