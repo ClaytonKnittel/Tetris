@@ -26,17 +26,18 @@ GLLIBS=-lglew.2.1 -lglfw.3.3 -framework OpenGL
 DEBUG=1
 
 # set when building for production
-BUILD=0
-
-ifeq ($(DEBUG), 0)
-CFLAGS=-O3 -Wall -Wno-unused-function -MMD -MP
-else
-CFLAGS=-O0 -Wall -Wno-unused-function -MMD -MP -g3 -DDEBUG
-endif
+BUILD=1
 
 ifeq ($(BUILD), 1)
-CFLAGS=$(CFLAGS) -DBUILD
+BFLAGS=-DBUILD
 endif
+
+ifeq ($(DEBUG), 0)
+CFLAGS=-O3 -Wall -Wno-unused-function -MMD -MP $(BFLAGS)
+else
+CFLAGS=-O0 -Wall -Wno-unused-function -MMD -MP -g3 -DDEBUG $(BFLAGS)
+endif
+
 
 # -flto allows link-time optimization (like function inlining)
 LDFLAGS=$(LFLAGS) $(GLLIBS) -flto -lfreetype -framework CoreFoundation
