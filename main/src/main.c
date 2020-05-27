@@ -85,7 +85,9 @@ int main(int argc, char *argv[]) {
                 // for MacOS compatibility (gives sn_0_...)
                 break;
             default:
-                return usage(argv);
+                // ignore bad cmd line args for now
+                break;
+                //return usage(argv);
         }
     }
 
