@@ -29,6 +29,9 @@ $(BASE_DIR)/$(APP_NAME).app:
 	@mkdir -p $@/Contents/Resources
 	@mkdir -p $@/Contents/PlugIns
 	@mkdir -p $@/Contents/Frameworks
+	touch $@/Contents/Resources/.gitignore
+	touch $@/Contents/PlugIns/.gitignore
+	touch $@/Contents/Frameworks/.gitignore
 	cp $(BDIR)/$(EXE_NAME) $@/Contents/MacOS/
 	cp $(BUILDDIR)/Info.plist $@/Contents/
 	cp $(BUILDDIR)/tetris.icns $@/Contents/Resources
