@@ -44,6 +44,8 @@ int main(int argc, char *argv[]) {
 
     openlog("tetris", LOG_CONS, LOG_USER);
 
+    printf("Tetris:\n");
+
     // by default, seed is system time
     uint64_t seed = time(NULL);
     char *buf;
