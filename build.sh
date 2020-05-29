@@ -21,13 +21,11 @@ mkdir -p $APP_DIR
 mkdir -p $APP_DIR/Contents
 mkdir -p $APP_DIR/Contents/MacOS
 mkdir -p $APP_DIR/Contents/Resources
-mkdir -p $APP_DIR/Contents/PlugIns
 mkdir -p $APP_DIR/Contents/Frameworks
 
 
 # signal to OS (and git) to keep directories even if they are empty
 touch $APP_DIR/Contents/Resources/.keep
-touch $APP_DIR/Contents/PlugIns/.keep
 touch $APP_DIR/Contents/Frameworks/.keep
 
 
