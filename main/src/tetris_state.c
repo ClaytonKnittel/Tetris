@@ -262,13 +262,13 @@ void tetris_set_falling_speed(tetris_state *s, double period) {
     s->major_tick_time *= period / prev_period;
     s->major_tick_count = period;
 
-    uint32_t divisor =
-        (uint32_t) roundf(period / DESIRED_MINOR_TICK_SPEED);
-    if (divisor == 0) {
-        divisor = (uint32_t) roundf(DESIRED_MINOR_TICK_SPEED / period);
-        s->minor_tick_count = period * divisor;
+    if (period <= DESIRED_MINOR_TICK_SPEED * 2) {
+        s->minor_tick_count = period / 2;
     }
     else {
+        uint32_t divisor =
+            (uint32_t) roundf(period / DESIRED_MINOR_TICK_SPEED);
+        TETRIS_ASSERT(divisor != 0);
         s->minor_tick_count = period / divisor;
     }
 

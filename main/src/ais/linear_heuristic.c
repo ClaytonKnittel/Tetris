@@ -18,7 +18,7 @@
 
 // number of moves the AI is to look ahead to (1 means only think about current
 // move)
-#define DEFAULT_DEPTH 4
+#define DEFAULT_DEPTH 2
 
 // consider only best n possible landing locations according to heuristic,
 // lowers branching factor
@@ -327,23 +327,6 @@ static void _run_dijkstra(state_t *s) {
 
         // find all possible successors of this node
 
-        // wait for it to fall
-        tetris_state_shallow_copy(&new_state, game_state);
-        // advance game until the piece drops
-        int ret = tetris_advance_until_drop_transient(&new_state);
-        if (ret == 1) {
-            // this piece can stick
-            state_node * falling_spot = __find_state_node(s, &new_state);
-            __try_falling_spot_append(s, falling_spot);
-        }
-        else {
-            // if the piece did not stick, it must have moved
-            TETRIS_ASSERT(!piece_equals(game_state->falling_piece,
-                        new_state.falling_piece));
-            // wait until the gravity would drop the piece (new_state.time)
-            __try_decrease(s, &new_state, new_state.time, parent_idx, WAIT);
-        }
-
         // KEYBOARD INPUTS:
 
         // translations:
@@ -422,6 +405,23 @@ static void _run_dijkstra(state_t *s) {
             else {
                 __try_decrease(s, &new_state, time, parent_idx, ROTATE_CC);
             }
+        }
+
+        // wait for it to fall
+        tetris_state_shallow_copy(&new_state, game_state);
+        // advance game until the piece drops
+        int ret = tetris_advance_until_drop_transient(&new_state);
+        if (ret == 1) {
+            // this piece can stick
+            state_node * falling_spot = __find_state_node(s, &new_state);
+            __try_falling_spot_append(s, falling_spot);
+        }
+        else {
+            // if the piece did not stick, it must have moved
+            TETRIS_ASSERT(!piece_equals(game_state->falling_piece,
+                        new_state.falling_piece));
+            // wait until the gravity would drop the piece (new_state.time)
+            __try_decrease(s, &new_state, new_state.time, parent_idx, WAIT);
         }
 
     }
@@ -756,6 +756,14 @@ int _try_move(state_node * action, tetris_state *s) {
                             s->falling_piece)) {
                     // wait until the falling pieces are different
                     ret = 0;
+                }
+                else {
+                    // only wait for gravity/stick, so piece must either now be
+                    // different, or below us
+                    TETRIS_ASSERT(action->game_state.falling_piece.piece_idx !=
+                                s->falling_piece.piece_idx ||
+                            action->game_state.falling_piece.board_y >
+                                s->falling_piece.board_y);
                 }
                 break;
             default:

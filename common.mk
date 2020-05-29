@@ -26,7 +26,7 @@ GLLIBS=-lglew.2.1 -lglfw.3.3 -framework OpenGL
 DEBUG=1
 
 # set when building for production
-BUILD=1
+BUILD=0
 
 ifeq ($(BUILD), 1)
 BFLAGS=-DBUILD

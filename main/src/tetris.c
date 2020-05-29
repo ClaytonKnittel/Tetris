@@ -428,20 +428,21 @@ void tetris_step(tetris_t *t) {
 
         case CLEAR_ANIMATION:
             // clear animation runs on minor time steps
-            if (tetris_is_minor_time_step(&t->game_state)) {
+            if (is_canim_time_step(&t->c_anim)) {
                 _clear_next_row(t);
 
                 if (_clear_animation_done(t)) {
                     _finish_clear_animation(t);
                 }
             }
+
+            // one time step passes for clear animator
+            canim_step(&t->c_anim);
             break;
         default:
             // cannot possibly get here
             __builtin_unreachable();
     }
-
-    tetris_tick(&t->game_state);
 }
 
 

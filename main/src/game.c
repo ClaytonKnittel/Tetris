@@ -123,6 +123,10 @@ void game_tick(game_t *g) {
         TETRIS_ASSERT(g->ctrl_callback != NULL);
         g->ctrl_callback(&g->t, g->ctrl_arg);
     }
+
+    // tick after callback has been made so that game state is in agreement on
+    // time with AI state
+    tetris_tick(&g->t.game_state);
 }
 
 void game_render(game_t *g) {

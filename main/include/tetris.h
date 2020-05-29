@@ -92,6 +92,11 @@ static void ctrl_reset(controller *c) {
  */
 #define CANIM_ROW_BITV_OFF 4
 
+/*
+ * default number of frames between animation steps
+ */
+#define CANIM_STEP_COUNT 6
+
 
 typedef struct clear_animator {
     /*
@@ -113,6 +118,11 @@ typedef struct clear_animator {
     int8_t l_col;
     // rightmost column to be cleared
     int8_t r_col;
+
+    // count of which frame delay we are on, always between 0 and
+    // CANIM_STEP_COUNT - 1 and increments by 1 each frame
+    uint8_t canim_time;
+
 } clear_animator;
 
 
@@ -148,6 +158,14 @@ typedef struct clear_animator {
      a->r_col++; \
     })
 
+
+// gives true if this time step is a clear animator time step, false otherwise
+#define is_canim_time_step(anim) \
+    ((anim)->canim_time == 0)
+
+// increments clear animator time by one
+#define canim_step(anim) \
+    ((anim)->canim_time = ((anim)->canim_time + 1) % CANIM_STEP_COUNT)
 
 
 
