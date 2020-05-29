@@ -378,8 +378,6 @@ static void _run_dijkstra(state_t *s) {
                     !tetris_is_major_time_step(&new_state)) ||
                 tetris_advance_to_next_minor_time_step(&new_state) == 0) {
 
-            abort();
-
             if (tetris_move_piece_transient(&new_state, 0, -1)) {
 
                 uint64_t down_time = new_state.time;

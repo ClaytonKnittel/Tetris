@@ -27,7 +27,7 @@
 // desired fast falling speed, will try to get as close to this as possible
 // (but we require fast falling delay to be an integer quotient of gravity
 // delay)
-#define DESIRED_MINOR_TICK_SPEED 5
+#define DESIRED_MINOR_TICK_SPEED 4
 
 // default avg. # frames between callbacks to held-down keys
 #define DEFAULT_HELD_KEY_PERIOD 4.

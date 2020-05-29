@@ -588,7 +588,9 @@ static uint64_t _ticks_to_next(float tick_count, float tick_time) {
         return (uint64_t) ceil(-tick_time);
     }
     int64_t res = (int64_t) ceil(tick_count - fmod(tick_time, tick_count));
-    return (uint64_t) MAX(res, 1);
+    uint64_t ans = (uint64_t) MAX(res, 1);
+    TETRIS_ASSERT(fmod((tick_time + ans), tick_count) < 1);
+    return ans;
 }
 
 
@@ -721,6 +723,8 @@ void tetris_advance_to_next_action(tetris_state *s) {
 
 int tetris_advance_to_next_minor_time_step(tetris_state *s) {
     int ret;
+    float minor_tick_time;
+    uint64_t ticks_to_next_minor_ts;
 
     if (s->major_tick_count <= s->minor_tick_count) {
         // if every minor tick happens on a major tick, then there are no minor
@@ -729,11 +733,11 @@ int tetris_advance_to_next_minor_time_step(tetris_state *s) {
     }
 
     do {
-        float minor_tick_time = fmod(s->major_tick_time, s->minor_tick_count);
-        uint64_t ticks_to_next_minor_ts =
+        minor_tick_time = s->major_tick_time;
+        ticks_to_next_minor_ts =
             _ticks_to_next(s->minor_tick_count, minor_tick_time);
         ret = tetris_advance_by_transient(s, &ticks_to_next_minor_ts);
-    } while(ret == 0 && tetris_is_major_time_step(s));
+    } while(ret == 0 && (tetris_is_major_time_step(s) || !tetris_is_minor_time_step(s)));
 
     TETRIS_ASSERT(tetris_is_minor_time_step(s) || ret == 1);
 
