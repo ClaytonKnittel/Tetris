@@ -45,9 +45,9 @@ LDFLAGS=$(LFLAGS) $(GLLIBS) -flto -lfreetype -framework CoreFoundation
 
 GL_FRAMEWORK=/System/Library/Frameworks/OpenGL.framework
 
-LIBFREETYPE=/usr/local/Cellar/freetype/2.10.1/lib/libfreetype.dylib
-LIBGLEW=/usr/local/Cellar/glew/2.1.0_1/lib/libGLEW.2.1.dylib
-LIBGLFW=/usr/local/Cellar/glfw/3.3.2/lib/libglfw.3.3.dylib
+LIBFREETYPE=/usr/local/opt/freetype/lib/libfreetype.6.dylib
+LIBGLEW=/usr/local/opt/glew/lib/libGLEW.2.1.dylib
+LIBGLFW=/usr/local/opt/glfw/lib/libglfw.3.dylib
 
 FONTS_DIR=$(BASE_DIR)/fonts
 

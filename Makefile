@@ -21,29 +21,10 @@ glib:
 app: $(BASE_DIR)/$(APP_NAME).app
 
 .PHONY: $(BASE_DIR)/$(APP_NAME).app
-$(BASE_DIR)/$(APP_NAME).app:
-	@(make -C .)
-	@mkdir -p $@
-	@mkdir -p $@/Contents
-	@mkdir -p $@/Contents/MacOS
-	@mkdir -p $@/Contents/Resources
-	@mkdir -p $@/Contents/PlugIns
-	@mkdir -p $@/Contents/Frameworks
-	touch $@/Contents/Resources/.gitignore
-	touch $@/Contents/PlugIns/.gitignore
-	touch $@/Contents/Frameworks/.gitignore
-	cp $(BDIR)/$(EXE_NAME) $@/Contents/MacOS/
-	cp $(BUILDDIR)/Info.plist $@/Contents/
-	cp $(BUILDDIR)/tetris.icns $@/Contents/Resources
-	@mkdir -p $@/Contents/Resources/main/
-	cp -r $(GAMEDIR)/res $@/Contents/Resources/main/
-	@mkdir -p $@/Contents/Resources/glib/
-	cp -r $(LIBDIR)/res $@/Contents/Resources/glib/
-	cp -r $(FONTS_DIR) $@/Contents/Resources/
-	#cp -r $(GL_FRAMEWORK) $@/Contents/Frameworks/
-	cp $(LIBGLEW) $@/Contents/PlugIns/
-	cp $(LIBGLFW) $@/Contents/PlugIns/
-	cp $(LIBFREETYPE) $@/Contents/PlugIns/
+$(BASE_DIR)/$(APP_NAME).app: all
+	bash build.sh $(BASE_DIR) $(APP_NAME).app $(BDIR)/$(EXE_NAME) \
+		$(BUILDDIR)/Info.plist $(BUILDDIR)/tetris.icns $(GAMEDIR)/res \
+		$(LIBDIR)/res $(FONTS_DIR) $(LIBGLEW) $(LIBGLFW) $(LIBFREETYPE)
 
 
 .PHONY: clean
