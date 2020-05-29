@@ -818,14 +818,29 @@ int tetris_advance_transient(tetris_state *s) {
             // before it sticks
             s->fp_data.falling_status |= HIT_GROUND_LAST_FRAME;
 
+
+            float mtc = s->major_tick_count;
             // artificially advance time forward to
             // CTRL_HIT_GROUND_LAST_DELAY% of major time step delay before
             // the next major time step
-            s->major_tick_time = fmod(s->major_tick_time, s->major_tick_count) -
-                CTRL_HIT_GROUND_LAST_DELAY;
-
-            // don't let it go negative
-            //s->major_tick_time = MAX(s->major_tick_time, 0);
+            if (mtc >= MAX_CTRL_GROUND_HIT_DELAY -
+                       MIN_CTRL_GROUND_HIT_DELAY) {
+                // if major tick count is greater than the max delay, then we
+                // have already waited long enough for the stick to piece, we
+                // can make it stick next frame
+                s->major_tick_time = -MIN_CTRL_GROUND_HIT_DELAY;
+            }
+            else if (mtc <= MAX_CTRL_GROUND_HIT_DELAY -
+                            CTRL_HIT_GROUND_LAST_DELAY) {
+                // otherwise if major tick count is smaller than the difference
+                // between the ground hit delay and the max ground hit delay,
+                // delay as much as possible
+                s->major_tick_time = -CTRL_HIT_GROUND_LAST_DELAY;
+            }
+            else {
+                // otherwise, linearly interpolate between the two above cases
+                s->major_tick_time = (mtc - MAX_CTRL_GROUND_HIT_DELAY);
+            }
 
             return ADVANCE_STALLED;
         }

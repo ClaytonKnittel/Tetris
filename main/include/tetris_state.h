@@ -45,6 +45,15 @@
 // time the ground hit will be tested again
 #define CTRL_HIT_GROUND_LAST_DELAY 10
 
+// minimum amount we must delay between a failed stick attempt and sticking
+// the piece
+#define MIN_CTRL_GROUND_HIT_DELAY 4
+
+// max total number of ticks to wait between a hit detection and sticking, used
+// to limit how long you need to wait for a piece to stick on slower moving
+// levels
+#define MAX_CTRL_GROUND_HIT_DELAY 20
+
 
 typedef struct falling_piece_data {
 
