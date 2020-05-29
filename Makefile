@@ -24,7 +24,8 @@ app: $(BASE_DIR)/$(APP_NAME).app
 $(BASE_DIR)/$(APP_NAME).app: all
 	bash build.sh $(BASE_DIR) $(APP_NAME).app $(BDIR)/$(EXE_NAME) \
 		$(BUILDDIR)/Info.plist $(BUILDDIR)/tetris.icns $(GAMEDIR)/res \
-		$(LIBDIR)/res $(FONTS_DIR) $(LIBGLEW) $(LIBGLFW) $(LIBFREETYPE)
+		$(LIBDIR)/res $(FONTS_DIR) $(LIBGLEW) $(LIBGLFW) $(LIBFREETYPE) $(LIBPNG)
+	bash build/config_dylibs.sh $@/Contents/Frameworks $(LIBFREETYPE) $(LIBPNG)
 
 
 .PHONY: clean

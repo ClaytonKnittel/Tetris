@@ -45,6 +45,7 @@ LDFLAGS=$(LFLAGS) $(GLLIBS) -flto -lfreetype -framework CoreFoundation
 
 GL_FRAMEWORK=/System/Library/Frameworks/OpenGL.framework
 
+LIBPNG=/usr/local/opt/libpng/lib/libpng16.16.dylib
 LIBFREETYPE=/usr/local/opt/freetype/lib/libfreetype.6.dylib
 LIBGLEW=/usr/local/opt/glew/lib/libGLEW.2.1.dylib
 LIBGLFW=/usr/local/opt/glfw/lib/libglfw.3.dylib

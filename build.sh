@@ -43,7 +43,7 @@ do
     if [ $EXT == "dylib" ]
     then
         DYLIB_NAME=${DEP##*/}
-        cp -r $DEP $APP_DIR/Contents/Frameworks/
+        install -C -m 666 $DEP $APP_DIR/Contents/Frameworks/
         # need to change search path for this dyli
         install_name_tool -change "$DEP" "@loader_path/../Frameworks/$DYLIB_NAME" $APP_DIR/Contents/MacOS/$EXE_NAME
     elif [ $EXT == "framework" ]
