@@ -7,8 +7,8 @@
 #define SIZEOF_UINT8 4U
 
 // same as macros from board.h
-#define N_STATES 8U
-#define LOG_N_STATES 3U
+#define N_STATES 16U
+#define LOG_N_STATES 4U
 #define COLOR_IDXS_PER_INT \
     ((SIZEOF_UINT8 * 8U) / LOG_N_STATES)
 #define COLOR_IDX_MASK (N_STATES - 1U)
@@ -17,6 +17,13 @@
 // transformation matrix to be applied to entire grid. When it's the identity,
 // the board is drawn to exactly fit the unit square
 uniform mat3 trans;
+
+
+// relative indices of each of the four color variants
+#define NORMAL 0U
+#define LIGHT  1U
+#define MED    2U
+#define DARK   3U
 
 // array of colors in quads (normal, light, med, dark), which is indexed into
 // with the color index of each tile
@@ -68,12 +75,23 @@ void main() {
     gl_Position.z = 0.f;
 
     // now find color_idx for tile
-    uint color_idx = tile_idx / COLOR_IDXS_PER_INT;
-    uint el_idx = tile_idx - (color_idx * COLOR_IDXS_PER_INT);
-    uint color = (color_idxs[color_idx] >> (el_idx * LOG_N_STATES))
+    uint state_idx = tile_idx / COLOR_IDXS_PER_INT;
+    uint el_idx = tile_idx - (state_idx * COLOR_IDXS_PER_INT);
+    uint state = (color_idxs[state_idx] >> (el_idx * LOG_N_STATES))
         & COLOR_IDX_MASK;
 
-    vec4 col = color_array[color * 4U + shade_index];
+    uint color = (state & 0x7U);
+    bool shadow = ((state >> 3U) & 1U) != 0U;
+
+    vec4 col;
+    if (shadow && (shade_index == NORMAL)) {
+        // if this is a shadow tile, then don't color in the inside of the
+        // tile
+        col = vec4(0, 0, 0, 0);
+    }
+    else {
+        col = color_array[color * 4U + shade_index];
+    }
 
     if (grayed) {
         // if grayed out, calculate grayed color

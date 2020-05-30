@@ -6,6 +6,7 @@
 #include <gl/color.h>
 
 #include <board.h>
+#include <tutil.h>
 
 
 // number of different colors of tiles (not including invisible)
@@ -50,6 +51,75 @@ void board_unset_grayed(board_t *b) {
 static int _board_is_grayed(board_t *b) {
     return b->flags & BOARD_GRAYED;
 }
+
+
+
+/*
+ * places shadow of falling piece on the board (where it would stick if it were
+ * left to fall all the way), and writes back the shadow piece into falling_piece
+ *
+ * note: do not need to set board_changed here, since the shadow will not move
+ * unless some other tiles on the board change, and we expect the shadow to be
+ * drawn every frame (i.e. not turned on between frames)
+ */
+void board_place_shadow(board_t *b, piece_t *falling_piece) {
+    piece_t fp = *falling_piece;
+    define_each_piece_tile(p, fp);
+
+    // does board_remove_piece(b, fp) without redefining piece indices
+    board_set_tile(b, p_x1, p_y1, EMPTY);
+    board_set_tile(b, p_x2, p_y2, EMPTY);
+    board_set_tile(b, p_x3, p_y3, EMPTY);
+    board_set_tile(b, p_x4, p_y4, EMPTY);
+
+    while (1) {
+        fp.board_y--;
+        p_y1--;
+        p_y2--;
+        p_y3--;
+        p_y4--;
+        if (p_y1 < 0 ||
+                board_get_tile(b, p_x1, p_y1) ||
+                board_get_tile(b, p_x2, p_y2) ||
+                board_get_tile(b, p_x3, p_y3) ||
+                board_get_tile(b, p_x4, p_y4)) {
+            // if either the lower left corner of the tile is below the board
+            // (p_y1 < 0) or even one of the tiles can't be placed here, then
+            // the previous spot is where the shadow goes
+            fp.board_y++;
+            p_y1++;
+            p_y2++;
+            p_y3++;
+            p_y4++;
+            break;
+        }
+    }
+
+    uint32_t tile_color = PIECE_SHADOW | fp.piece_idx;
+
+    board_set_tile(b, p_x1, p_y1, tile_color);
+    board_set_tile(b, p_x2, p_y2, tile_color);
+    board_set_tile(b, p_x3, p_y3, tile_color);
+    board_set_tile(b, p_x4, p_y4, tile_color);
+
+    // put the falling piece back
+    board_place_piece(b, *falling_piece);
+    // write back the shadow piece into falling_piece
+    *falling_piece = fp;
+}
+
+/*
+ * removes shadow of the falling piece
+ */
+void board_remove_shadow(board_t *b, piece_t falling_piece) {
+    define_each_piece_tile(p, falling_piece);
+
+    board_unset_shadow_tile(b, p_x1, p_y1);
+    board_unset_shadow_tile(b, p_x2, p_y2);
+    board_unset_shadow_tile(b, p_x3, p_y3);
+    board_unset_shadow_tile(b, p_x4, p_y4);
+}
+
 
 
 const static color_t color_theme[4 * N_COLORS] = {
@@ -217,6 +287,35 @@ int board_set_tile(board_t *b, int32_t x, int32_t y,
     return 1;
 }
 
+
+/*
+ * unsets the given tile if it is a shadow tile (and returns 1), otherwise does
+ * nothing (and returns 0)
+ * note: does not set board_changed
+ */
+int board_unset_shadow_tile(board_t *b, int32_t x, int32_t y) {
+    // by comparing as unsigned, take care of negative case
+    if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
+        return 0;
+    }
+
+    uint32_t idx = y * b->width + x;
+    uint32_t color_idx = idx / COLOR_IDXS_PER_INT;
+    uint32_t el_idx = idx - (color_idx * COLOR_IDXS_PER_INT);
+
+    uint32_t tile = b->color_idxs[color_idx] >> (el_idx * LOG_N_STATES);
+    tile &= COLOR_IDX_MASK;
+    if (!(tile & PIECE_SHADOW)) {
+        // tile is not a shadow
+        return 0;
+    }
+    // mark tile as empty
+    uint32_t mask = COLOR_IDX_MASK << (el_idx * LOG_N_STATES);
+    b->color_idxs[color_idx] = b->color_idxs[color_idx] & ~mask;
+    return 1;
+}
+
+
 uint8_t board_get_tile(board_t *b, int32_t x, int32_t y) {
     // by comparing as unsigned, take care of negative case
     if (((uint32_t) x) >= b->width || ((uint32_t) y) >= b->height) {
@@ -340,10 +439,11 @@ int board_piece_collides(board_t *b, piece_t piece) {
 
 
 
-
-
 void board_draw(board_t *b) {
     gl_use_program(&b->p);
+
+    // copies of the board should not be drawing
+    TETRIS_ASSERT(!(b->flags & BOARD_COPY));
 
     if (_board_changed(b)) {
         // send over all color information about tiles

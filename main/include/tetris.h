@@ -220,6 +220,12 @@ static uint8_t* tetris_get_up_next(tetris_t *t) {
 void tetris_step(tetris_t *t);
 
 
+/*
+ * draws tetris game to screen
+ */
+void tetris_draw(tetris_t *t);
+
+
 
 
 #endif /* _TETRIS_H */

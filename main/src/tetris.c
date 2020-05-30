@@ -375,6 +375,11 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
         // tile is moved down in major time steps by _advance
         if (!is_major_ts) {
             res |= tetris_move_piece(&t->game_state, 0, -1);
+            if (res) {
+                // and make it a major time step again if the piece
+                // successfully moved
+                tetris_set_major_ts(&t->game_state);
+            }
         }
     }
 
@@ -400,7 +405,6 @@ void tetris_step(tetris_t *t) {
 
             if (tetris_is_major_time_step(&t->game_state)) {
                 // advance game state
-
                 do {
                     advance_status = tetris_advance(&t->game_state);
 
@@ -442,6 +446,26 @@ void tetris_step(tetris_t *t) {
         default:
             // cannot possibly get here
             __builtin_unreachable();
+    }
+}
+
+
+/*
+ * draws tetris game to screen
+ */
+void tetris_draw(tetris_t *t) {
+    board_t *b = &t->game_state.board;
+
+    if (t->game_state.state != CLEAR_ANIMATION) {
+        piece_t fp = t->game_state.falling_piece;
+
+        board_place_shadow(b, &fp);
+        board_draw(b);
+        board_remove_shadow(b, fp);
+    }
+    else {
+        // during clear animation, don't draw the shadow
+        board_draw(b);
     }
 }
 

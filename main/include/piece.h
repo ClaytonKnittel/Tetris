@@ -330,6 +330,10 @@ static void piece_init(piece_t *p, uint8_t piece_idx, uint8_t board_w,
     p->board_y = board_h - (piece_idx == PIECE_I ? 2 : 1);
 }
 
+static void piece_clear(piece_t *p) {
+    *(uint32_t *) p = 0;
+}
+
 static void piece_move(piece_t *p, int8_t dx, int8_t dy) {
     p->board_x += dx;
     p->board_y += dy;

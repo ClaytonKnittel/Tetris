@@ -132,7 +132,7 @@ void game_tick(game_t *g) {
 void game_render(game_t *g) {
     int flags = g->flags;
 
-    board_draw(&g->t.game_state.board);
+    tetris_draw(&g->t);
     if (flags & SHOW_FRAME) {
         frame_draw(&g->f);
     }

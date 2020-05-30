@@ -291,6 +291,13 @@ void tetris_set_falling_speed(tetris_state *s, double period);
  */
 void tetris_set_level(tetris_state *s, uint32_t level);
 
+/*
+ * set current time to be a major time step (to be called when a piece is moved
+ * down by player control, so that stick time is fixed from the moment the
+ * piece touches the ground)
+ */
+void tetris_set_major_ts(tetris_state *s);
+
 
 
 /*

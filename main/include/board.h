@@ -5,8 +5,8 @@
 #include <piece.h>
 
 // number of possible states for each tile
-#define N_STATES 8
-#define LOG_N_STATES 3
+#define N_STATES 16
+#define LOG_N_STATES 4
 
 
 // number of color indices that can be packed into a single uint32_t
@@ -24,6 +24,12 @@
 #define BOARD_CHANGED 0x1
 #define BOARD_GRAYED 0x2
 #define BOARD_COPY 0x4
+
+
+/*
+ * bit to set in color_idxs to mark tile as shadow
+ */
+#define PIECE_SHADOW 0x8
 
 
 typedef struct board {
@@ -88,6 +94,22 @@ void board_set_grayed(board_t *b);
 void board_unset_grayed(board_t *b);
 
 
+/*
+ * places shadow of falling piece on the board (where it would stick if it were
+ * left to fall all the way), and writes back the shadow piece into falling_piece
+ *
+ * note: do not need to set board_changed here, since the shadow will not move
+ * unless some other tiles on the board change, and we expect the shadow to be
+ * drawn every frame (i.e. not turned on between frames)
+ */
+void board_place_shadow(board_t *b, piece_t *falling_piece);
+
+/*
+ * removes shadow of the falling piece
+ */
+void board_remove_shadow(board_t *b, piece_t falling_piece);
+
+
 
 void board_clear(board_t *b);
 
@@ -97,6 +119,13 @@ void board_clear(board_t *b);
  */
 int board_set_tile(board_t *b, int32_t x, int32_t y,
         uint32_t tile_color);
+
+/*
+ * unsets the given tile if it is a shadow tile (and returns 1), otherwise does
+ * nothing (and returns 0)
+ * note: does not set board_changed
+ */
+int board_unset_shadow_tile(board_t *b, int32_t x, int32_t y);
 
 
 uint8_t board_get_tile(board_t *b, int32_t x, int32_t y);
