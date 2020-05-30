@@ -18,12 +18,19 @@ static void _init_fp_data(falling_piece_data *f) {
 }
 
 static void _reset_fp_data(falling_piece_data *f) {
-    f->falling_status &= ~HIT_GROUND_LAST_FRAME;
+    f->falling_status = 0;
     f->ground_hit_count = 0;
 
     f->min_h_inc_time = 0;
     // set min_h to max value of height
     f->min_h = 0x7f;
+}
+
+/*
+ * returns true if the falling piece has been set to stick wherever it is
+ */
+int tetris_piece_is_sticking(tetris_state *s) {
+    return (s->fp_data.falling_status & STICK_NOW) != 0;
 }
 
 
@@ -382,6 +389,11 @@ int tetris_move_piece_transient(tetris_state *state, int dx, int dy) {
     piece_t falling;
     piece_t new_falling;
 
+    if (tetris_piece_is_sticking(state)) {
+        // if the falling piece is sticking, disable all movement options
+        return 0;
+    }
+
     falling = state->falling_piece;
 
     // and now advance the piece to wherever it needs to go
@@ -444,6 +456,11 @@ int tetris_rotate_piece_transient(tetris_state *state, int rotation,
     piece_t falling;
     piece_t new_falling;
     int8_t dx, dy;
+
+    if (tetris_piece_is_sticking(state)) {
+        // if the falling piece is sticking, disable all movement options
+        return 0;
+    }
 
     falling = state->falling_piece;
 
@@ -514,9 +531,11 @@ int tetris_hold_piece_transient(tetris_state *s) {
 
     uint8_t held_piece;
 
-    if (s->hold.flags & PIECE_HOLD_STALE) {
+    if (s->hold.flags & PIECE_HOLD_STALE ||
+            tetris_piece_is_sticking(s)) {
         // if the hold is stale (a hold operation already happened after the
-        // last placement) then ignore the request
+        // last placement), or the falling piece has been set to stick, then
+        // ignore the request
         return 0;
     }
 
@@ -538,6 +557,44 @@ int tetris_hold_piece_transient(tetris_state *s) {
     }
 
     return 1;
+}
+
+
+/*
+ * performs a hard drop, which instantly places the falling piece
+ */
+void tetris_hard_drop(tetris_state *state) {
+
+    piece_t falling = state->falling_piece;
+
+    // first, remove the piece from the board where it is
+    board_remove_piece(&state->board, falling);
+
+    // then do a transient rotation
+    tetris_hard_drop_transient(state);
+
+    falling = state->falling_piece;
+    // then place the new falling piece back on the board
+    board_place_piece(&state->board, falling);
+}
+
+/*
+ * similar to hard drop, but expects the falling piece to not be on the
+ * board, and does not place the new falling piece on the board
+ */
+void tetris_hard_drop_transient(tetris_state *state) {
+    piece_t fp = state->falling_piece;
+
+    while (!board_piece_collides(&state->board, fp)) {
+        fp.board_y--;
+    }
+    fp.board_y++;
+
+    state->falling_piece = fp;
+
+    // make the piece stick on the next major time step and disable any other
+    // player inputs from moving the piece
+    tetris_stick(state);
 }
 
 
@@ -585,6 +642,19 @@ int tetris_clear_lines(tetris_state *state) {
     tetris_scorer_count_move(state, num_rows_cleared, 0);
 
     return num_rows_cleared;
+}
+
+
+/*
+ * makes the falling piece stick wherever it is, disabling any other inputs
+ * from moving the piece until it sticks
+ */
+void tetris_stick(tetris_state *state) {
+    // make the piece stick on the next major time step
+    state->fp_data.falling_status |= STICK_NOW;
+
+    // and make it a major time step again so the piece immediately sticks
+    tetris_set_major_ts(state);
 }
 
 

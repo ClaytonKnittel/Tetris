@@ -12,6 +12,10 @@
 #include <piece.h>
 
 
+// forward declaration
+struct tetris_state;
+
+
 /*
  * game states
  */
@@ -23,6 +27,10 @@
  * falling piece flags
  */
 #define HIT_GROUND_LAST_FRAME 0x1
+
+// set to tell the piece to stick now, which disables user inputs from
+// registering until the piece sticks
+#define STICK_NOW 0x2
 
 // desired fast falling speed, will try to get as close to this as possible
 // (but we require fast falling delay to be an integer quotient of gravity
@@ -80,6 +88,11 @@ typedef struct falling_piece_data {
     int8_t min_h;
 
 } falling_piece_data;
+
+/*
+ * returns true if the falling piece has been set to stick wherever it is
+ */
+int tetris_piece_is_sticking(struct tetris_state *s);
 
 
 
@@ -372,10 +385,29 @@ void tetris_hold_piece(tetris_state *s);
 int tetris_hold_piece_transient(tetris_state *s);
 
 /*
+ * performs a hard drop, which instantly places the falling piece
+ */
+void tetris_hard_drop(tetris_state *s);
+
+/*
+ * similar to hard drop, but expects the falling piece to not be on the
+ * board, and does not place the new falling piece on the board
+ */
+void tetris_hard_drop_transient(tetris_state *s);
+
+
+/*
  * checks the current state to see if there are any lines to be cleared, and if
  * so, clears them and returns the number of lines cleared
  */
 int tetris_clear_lines(tetris_state *state);
+
+
+/*
+ * makes the falling piece stick wherever it is, disabling any other inputs
+ * from moving the piece until it sticks
+ */
+void tetris_stick(tetris_state *state);
 
 
 /*

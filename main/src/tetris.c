@@ -194,7 +194,6 @@ static int _rotate_piece(tetris_t *t, int rotation) {
 
 
 
-
 /*
  * to be called whenever a piece sticks to the ground (to check for row
  * clearing)
@@ -274,6 +273,7 @@ static void _control_moved_piece(tetris_t *t) {
 
 
 
+
 static void _handle_event(tetris_t *t, key_event *ev) {
 
     if (!ctrl_is_active(&t->ctrl)) {
@@ -309,6 +309,17 @@ static void _handle_event(tetris_t *t, key_event *ev) {
                 break;
             case GLFW_KEY_LEFT_SHIFT:
                 tetris_hold_piece(&t->game_state);
+                break;
+            case GLFW_KEY_SPACE:
+                tetris_hard_drop(&t->game_state);
+                // the piece is always successfully moved
+                res = 1;
+                // make the piece stick on the next major time step and disable
+                // any other player inputs from moving the piece
+                tetris_stick(&t->game_state);
+                // and make it a major time step again so the piece immediately
+                // sticks
+                tetris_set_major_ts(&t->game_state);
                 break;
         }
     }
