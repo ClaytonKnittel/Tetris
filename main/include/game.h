@@ -7,6 +7,7 @@
 #include <tetris.h>
 #include <frame.h>
 #include <hold.h>
+#include <msg_board.h>
 #include <score.h>
 #include <up_next.h>
 
@@ -19,8 +20,10 @@
 #define SHOW_SCORE 0x2
 #define SHOW_UP_NEXT 0x4
 #define SHOW_HOLD 0x8
+#define SHOW_MSG_BOARD 0x10
 
-#define SHOW_ALL (SHOW_FRAME | SHOW_SCORE | SHOW_UP_NEXT | SHOW_HOLD)
+#define SHOW_ALL (SHOW_FRAME | SHOW_SCORE | SHOW_UP_NEXT | SHOW_HOLD | \
+        SHOW_MSG_BOARD)
 
 
 /*
@@ -30,7 +33,7 @@
 // calls callback each frame and does not setup key listeners (used for AI to
 // play instead of human). If this flag is not set, then the game is controlled
 // with the keyboard keys
-#define MANUAL_CONTROL 0x10
+#define MANUAL_CONTROL 0x20
 
 
 typedef struct game {
@@ -40,6 +43,7 @@ typedef struct game {
     scoreboard sb;
     up_next_t u;
     hold_t h;
+    msg_board_t m;
 
     int flags;
 

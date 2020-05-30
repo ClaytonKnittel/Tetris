@@ -66,14 +66,23 @@ static float _level_drop_rate(uint32_t level) {
  * to be called after a piece is placed. This method takes the game state
  * struct, the number of rows cleared in the move, and the type of the piece
  * which was just placed
+ *
+ * if msg board is non-null, then the a message will be sent to the board
+ * whenever points are scored
  */
 void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
-        int print) {
+        msg_board_t *m) {
 
     int t_spin = 0;
     int b2b = 0;
 
     uint8_t piece_type = s->falling_piece.piece_idx;
+
+    char buf[MAX_MSG_LEN];
+
+    if (m != NULL) {
+        buf[0] = '\0';
+    }
 
     if (piece_type == PIECE_T &&
             (s->scorer.status & SCORER_LAST_ACTION_WAS_ROTATE)) {
@@ -92,11 +101,8 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
         tot_occ += board_get_tile(&s->board, x + 2, y + 2) != EMPTY;
 
         if (tot_occ >= 3) {
-            if (print) {
-                printf("T-Spin ");
-                if (num_rows_cleared == 0) {
-                    printf("\n");
-                }
+            if (m != NULL) {
+                snprintf(buf, MAX_MSG_LEN, "%sT-Spin ", buf);
             }
             t_spin = 1;
         }
@@ -105,8 +111,8 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
     // difficult moves are either t spins with > 0 clears or tetris's
     if (t_spin || num_rows_cleared == 4) {
         if (s->scorer.status & SCORER_LAST_CLEAR_WAS_HARD) {
-            if (print) {
-                printf("B2B ");
+            if (m != NULL) {
+                snprintf(buf, MAX_MSG_LEN, "%sB2B ", buf);
             }
             b2b = 1;
         }
@@ -123,8 +129,8 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
         // if any lines were cleared, we have a combo of at least 1
         s->scorer.combo_len++;
         if (s->scorer.combo_len >= 2) {
-            if (print) {
-                printf("Combo of length %d\n", s->scorer.combo_len);
+            if (m != NULL) {
+                snprintf(buf, MAX_MSG_LEN, "%sx%d ", buf, s->scorer.combo_len);
             }
         }
 
@@ -134,26 +140,26 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
         TETRIS_ASSERT(num_rows_cleared <= 4);
         switch (num_rows_cleared) {
             case 1:
-                if (print) {
-                    printf("Single");
+                if (m != NULL) {
+                    snprintf(buf, MAX_MSG_LEN, "%sSingle", buf);
                 }
                 pts = t_spin ? (b2b ? 1200 : 800) : 100;
                 break;
             case 2:
-                if (print) {
-                    printf("Double");
+                if (m != NULL) {
+                    snprintf(buf, MAX_MSG_LEN, "%sDouble", buf);
                 }
                 pts = t_spin ? (b2b ? 1800 : 1200) : 300;
                 break;
             case 3:
-                if (print) {
-                    printf("Triple");
+                if (m != NULL) {
+                    snprintf(buf, MAX_MSG_LEN, "%sTriple", buf);
                 }
                 pts = t_spin ? (b2b ? 2400 : 1600) : 500;
                 break;
             case 4:
-                if (print) {
-                    printf("Tetris");
+                if (m != NULL) {
+                    snprintf(buf, MAX_MSG_LEN, "%sTetris", buf);
                 }
                 TETRIS_ASSERT(!t_spin);
                 pts = b2b ? 1200 : 800;
@@ -166,8 +172,8 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
 
         s->scorer.score += pts * (s->scorer.level + 1);
 
-        if (print) {
-            printf(" %d\n", pts);
+        if (m != NULL) {
+            snprintf(buf, MAX_MSG_LEN, "%s %d", buf, pts);
         }
     }
     else {
@@ -187,6 +193,10 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
         s->scorer.level++;
 
         tetris_set_falling_speed(s, _level_drop_rate(s->scorer.level));
+    }
+
+    if (m != NULL) {
+        msg_board_post(m, buf);
     }
 }
 

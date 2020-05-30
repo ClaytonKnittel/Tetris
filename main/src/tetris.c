@@ -130,13 +130,15 @@ static void _finish_clear_animation(tetris_t *t) {
 
 
 
-void tetris_init(tetris_t *t, gl_context *context, float x, float y,
-        float screen_width, float screen_height) {
+void tetris_init(tetris_t *t, gl_context *context, msg_board_t *m, float x,
+        float y, float screen_width, float screen_height) {
 
     tetris_state_init(&t->game_state, context, x, y, screen_width,
             screen_height);
 
     _init_controller(&t->ctrl);
+
+    t->m = m;
 
     // note: do not need to initialize clear animator, as it is only accessed
     // when in clear animation state, and will be initialized when we enter
@@ -232,7 +234,7 @@ static void _piece_placed(tetris_t *t) {
         }
     }
 
-    tetris_scorer_count_move(&t->game_state, num_rows_cleared, 1);
+    tetris_scorer_count_move(&t->game_state, num_rows_cleared, t->m);
 
     if (num_rows_cleared > 0) {
         // if any rows were found to be clear, we have to do the clear animation!
@@ -314,12 +316,6 @@ static void _handle_event(tetris_t *t, key_event *ev) {
                 tetris_hard_drop(&t->game_state);
                 // the piece is always successfully moved
                 res = 1;
-                // make the piece stick on the next major time step and disable
-                // any other player inputs from moving the piece
-                tetris_stick(&t->game_state);
-                // and make it a major time step again so the piece immediately
-                // sticks
-                tetris_set_major_ts(&t->game_state);
                 break;
         }
     }

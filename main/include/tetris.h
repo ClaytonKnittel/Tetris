@@ -179,6 +179,8 @@ typedef struct tetris {
 
     tetris_state game_state;
 
+    msg_board_t *m;
+
     // align shared data with cache line
     char __attribute__((aligned(64))) __pad2[0];
 
@@ -187,8 +189,12 @@ typedef struct tetris {
 } tetris_t;
 
 
-void tetris_init(tetris_t *t, gl_context *context, float x, float y,
-        float screen_width, float screen_height);
+/*
+ * initialize renderable tetris game, with optional message board (can be null)
+ * to which any messages, such as receiving points for a move, will be posted
+ */
+void tetris_init(tetris_t *t, gl_context *context, msg_board_t *m, float x,
+        float y, float screen_width, float screen_height);
 
 
 static void tetris_destroy(tetris_t *t) {

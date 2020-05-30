@@ -3,7 +3,6 @@
 
 #include <gl/font.h>
 #include <gl/shader.h>
-#include <gl/font.h>
 
 #include <shape.h>
 

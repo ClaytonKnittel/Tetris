@@ -30,14 +30,12 @@ int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
     scoreboard *sb = &g->sb;
     up_next_t *u = &g->u;
     hold_t *h = &g->h;
+    msg_board_t *m = &g->m;
 
     g->flags = flags;
 
     float w = 2.f * aspect_ratio * ((float) TETRIS_WIDTH) /
         ((float) TETRIS_HEIGHT);
-    float x = -w / 2.f;
-    float y = -1.f;
-    tetris_init(t, c, x, y, w, 2.f);
 
     if (flags & SHOW_FRAME) {
         frame_init(f, TETRIS_WIDTH, TETRIS_HEIGHT);
@@ -58,12 +56,20 @@ int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
         hold_init(h, -.8f, .45f, .28f, .5f, font, &t->game_state);
     }
 
+    if (flags & SHOW_MSG_BOARD) {
+        msg_board_init(m, font, -.9f, -.4f, .4f, .04f);
+    }
+
     if (flags & MANUAL_CONTROL) {
         g->ctrl_callback = NULL;
     }
     else {
         gl_register_key_callback(c, &_default_key_event);
     }
+
+    float x = -w / 2.f;
+    float y = -1.f;
+    tetris_init(t, c, &g->m, x, y, w, 2.f);
 
     return 0;
 }
@@ -82,6 +88,9 @@ void game_destroy(game_t *g) {
     }
     if (flags & SHOW_FRAME) {
         frame_destroy(&g->f);
+    }
+    if (flags & SHOW_MSG_BOARD) {
+        msg_board_destroy(&g->m);
     }
     tetris_destroy(&g->t);
 }
@@ -147,6 +156,10 @@ void game_render(game_t *g) {
         scoreboard_set_score(&g->sb, g->t.game_state.scorer.score);
         scoreboard_set_level(&g->sb, g->t.game_state.scorer.level);
         scoreboard_draw(&g->sb);
+    }
+
+    if (flags & SHOW_MSG_BOARD) {
+        msg_board_draw(&g->m);
     }
 }
 

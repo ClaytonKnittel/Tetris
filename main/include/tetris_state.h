@@ -9,6 +9,7 @@
 #include <tutil.h>
 
 #include <board.h>
+#include <msg_board.h>
 #include <piece.h>
 
 
@@ -199,9 +200,12 @@ struct tetris_state;
  * to be called after a piece is placed. This method takes the game state
  * struct, the number of rows cleared in the move, and the type of the piece
  * which was just placed
+ *
+ * if msg board is non-null, then the a message will be sent to the board
+ * whenever points are scored
  */
 void tetris_scorer_count_move(struct tetris_state *s, int32_t num_rows_cleared,
-        int print);
+        msg_board_t *m);
 
 typedef struct tetris_state {
 
