@@ -278,11 +278,6 @@ static void _control_moved_piece(tetris_t *t) {
 
 static void _handle_event(tetris_t *t, key_event *ev) {
 
-    if (!ctrl_is_active(&t->ctrl)) {
-        // only register keyboard inputs while active
-        return;
-    }
-
     // res is set if the falling piece was successfully moved to a new location
     // due to one of the following move/rotate methods
     int res = 0;
@@ -290,32 +285,46 @@ static void _handle_event(tetris_t *t, key_event *ev) {
     if (ev->action == GLFW_PRESS) {
         switch (ev->key) {
             case GLFW_KEY_LEFT:
-                res = tetris_move_piece(&t->game_state, -1, 0);
+                if (ctrl_is_active(&t->ctrl)) {
+                    res = tetris_move_piece(&t->game_state, -1, 0);
+                }
                 t->ctrl.keypress_flags |= LEFT_KEY;
                 break;
             case GLFW_KEY_RIGHT:
-                res = tetris_move_piece(&t->game_state, 1, 0);
+                if (ctrl_is_active(&t->ctrl)) {
+                    res = tetris_move_piece(&t->game_state, 1, 0);
+                }
                 t->ctrl.keypress_flags |= RIGHT_KEY;
                 break;
             case GLFW_KEY_UP:
-                res = _rotate_piece(t, ROTATE_CLOCKWISE);
+                if (ctrl_is_active(&t->ctrl)) {
+                    res = _rotate_piece(t, ROTATE_CLOCKWISE);
+                }
                 break;
             case GLFW_KEY_DOWN:
                 t->ctrl.keypress_flags |= DOWN_KEY;
                 break;
             case GLFW_KEY_A:
-                res = _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
+                if (ctrl_is_active(&t->ctrl)) {
+                    res = _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
+                }
                 break;
             case GLFW_KEY_D:
-                res = _rotate_piece(t, ROTATE_CLOCKWISE);
+                if (ctrl_is_active(&t->ctrl)) {
+                    res = _rotate_piece(t, ROTATE_CLOCKWISE);
+                }
                 break;
             case GLFW_KEY_LEFT_SHIFT:
-                tetris_hold_piece(&t->game_state);
+                if (ctrl_is_active(&t->ctrl)) {
+                    tetris_hold_piece(&t->game_state);
+                }
                 break;
             case GLFW_KEY_SPACE:
-                tetris_hard_drop(&t->game_state);
-                // the piece is always successfully moved
-                res = 1;
+                if (ctrl_is_active(&t->ctrl)) {
+                    tetris_hard_drop(&t->game_state);
+                    // the piece is always successfully moved
+                    res = 1;
+                }
                 break;
         }
     }
@@ -349,11 +358,6 @@ static void _handle_event(tetris_t *t, key_event *ev) {
  */
 static void _handle_ctrl_callbacks(tetris_t *t) {
 
-    if (!ctrl_is_active(&t->ctrl)) {
-        // only register keyboard inputs while active
-        return;
-    }
-
     int is_major_ts = tetris_is_major_time_step(&t->game_state);
     int is_minor_ts = tetris_is_minor_time_step(&t->game_state);
     int is_keycb_ts = tetris_is_key_callback_step(&t->game_state);
@@ -362,7 +366,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
     int res = 0;
 
     if (is_keycb_ts && (c->keypress_flags & LEFT_KEY)) {
-        if (c->l_hold_count == REPEAT_TIMER) {
+        if (ctrl_is_active(&t->ctrl) && c->l_hold_count == REPEAT_TIMER) {
             res |= tetris_move_piece(&t->game_state, -1, 0);
         }
         else {
@@ -370,7 +374,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
         }
     }
     if (is_keycb_ts && (c->keypress_flags & RIGHT_KEY)) {
-        if (c->r_hold_count == REPEAT_TIMER) {
+        if (ctrl_is_active(&t->ctrl) && c->r_hold_count == REPEAT_TIMER) {
             res |= tetris_move_piece(&t->game_state, 1, 0);
         }
         else {
@@ -380,7 +384,7 @@ static void _handle_ctrl_callbacks(tetris_t *t) {
     if ((is_minor_ts && !is_major_ts) && (c->keypress_flags & DOWN_KEY)) {
         // only do this callback on exclusively minor time steps, since the
         // tile is moved down in major time steps by _advance
-        if (!is_major_ts) {
+        if (ctrl_is_active(&t->ctrl) && !is_major_ts) {
             res |= tetris_move_piece(&t->game_state, 0, -1);
             if (res) {
                 // and make it a major time step again if the piece
