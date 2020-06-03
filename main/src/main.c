@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
         gl_init(&c, WIDTH, HEIGHT);
         c.user_data = (void*) &g.t;
 
-        font_init(&font, "fonts/8bit_font.ttf", 12lu);
+        font_init(&font, "fonts/8bit_font.ttf", 32lu);
 
         color_t bg = gen_color(3, 30, 48, 255);
         gl_set_bg_color(bg);

@@ -379,6 +379,9 @@ static uint32_t _fetch_next_piece_idx(tetris_state *state) {
  * the board, to begin falling
  */
 void tetris_get_next_falling_piece(tetris_state *state) {
+
+    TETRIS_ASSERT(!tetris_state_is_transient(state));
+
     tetris_get_next_falling_piece_transient(state);
 }
 
@@ -406,6 +409,8 @@ int tetris_move_piece(tetris_state *state, int dx, int dy) {
     int ret;
 
     piece_t falling = state->falling_piece;
+
+    TETRIS_ASSERT(!tetris_state_is_transient(state));
 
     // first, remove the piece from the board where it is
     board_remove_piece(&state->board, falling);
@@ -471,6 +476,8 @@ int tetris_rotate_piece(tetris_state *state, int rotation,
     int ret;
 
     piece_t falling = state->falling_piece;
+
+    TETRIS_ASSERT(!tetris_state_is_transient(state));
 
     // first, remove the piece from the board where it is
     board_remove_piece(&state->board, falling);
@@ -554,6 +561,9 @@ int tetris_rotate_piece_transient(tetris_state *state, int rotation,
  * the hold slot was empty, the next piece is immediately chosen off the queue
  */
 void tetris_hold_piece(tetris_state *s) {
+
+    TETRIS_ASSERT(!tetris_state_is_transient(s));
+
     // take the falling piece off the board
     board_remove_piece(&s->board, s->falling_piece);
 
@@ -603,6 +613,8 @@ int tetris_hold_piece_transient(tetris_state *s) {
 void tetris_hard_drop(tetris_state *state) {
 
     piece_t falling = state->falling_piece;
+
+    TETRIS_ASSERT(!tetris_state_is_transient(state));
 
     // first, remove the piece from the board where it is
     board_remove_piece(&state->board, falling);
@@ -868,6 +880,8 @@ int tetris_advance_to_next_minor_time_step(tetris_state *s) {
  * should only be called on major time steps
  */
 int tetris_advance(tetris_state *s) {
+
+    TETRIS_ASSERT(!tetris_state_is_transient(s));
 
     if (s->state == GAME_OVER) {
         // don't advance
