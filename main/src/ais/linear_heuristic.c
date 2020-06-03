@@ -533,7 +533,11 @@ static state_node * _find_best_n(state_node * falling_spots, int n) {
     }
     best_n[i].node->next = LIST_END;
 
-    return best_n[0].node;
+    state_node * ret = best_n[0].node;
+
+    free(best_n);
+
+    return ret;
 }
 
 
@@ -596,6 +600,7 @@ static float _choose_best_dst(lha_t *a, state_t *s, int depth) {
             }
 
         }
+
     }
 
     if (_at_top_level(a, depth) && best != NULL) {
