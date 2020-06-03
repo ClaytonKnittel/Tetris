@@ -130,10 +130,10 @@ static void _finish_clear_animation(tetris_t *t) {
 
 
 
-void tetris_init(tetris_t *t, gl_context *context, msg_board_t *m, float x,
+void tetris_init(tetris_t *t, msg_board_t *m, float x,
         float y, float screen_width, float screen_height) {
 
-    tetris_state_init(&t->game_state, context, x, y, screen_width,
+    tetris_state_init5(&t->game_state, x, y, screen_width,
             screen_height);
 
     _init_controller(&t->ctrl);

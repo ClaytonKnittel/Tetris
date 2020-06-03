@@ -21,9 +21,10 @@
     (((n_tiles) + COLOR_IDXS_PER_INT - 1) / COLOR_IDXS_PER_INT)
 
 
-#define BOARD_CHANGED 0x1
-#define BOARD_GRAYED 0x2
-#define BOARD_COPY 0x4
+#define BOARD_DO_GRAPHICS 0x1
+#define BOARD_CHANGED 0x2
+#define BOARD_GRAYED 0x4
+#define BOARD_COPY 0x8
 
 
 /*
@@ -44,6 +45,7 @@ typedef struct board {
 
     /*
      * status flags for board, possible values are:
+     *  BOARD_DO_GRAPHICS: set whether the board is to be drawn to the screen
      *  BOARD_CHANGED: set whenever any of the tiles on the board have
      *      been changed
      *  BOARD_GRAYED: set if the board is to be displayed grayed out
@@ -59,7 +61,10 @@ typedef struct board {
 } board_t;
 
 
-int board_init(board_t *b, uint32_t width, uint32_t height);
+/*
+ * initialize a game board with graphical capabilities
+ */
+int board_init(board_t *b, uint32_t width, uint32_t height, int do_graphics);
 
 void board_destroy(board_t *b);
 

@@ -4,8 +4,6 @@
 
 #include <stdint.h>
 
-#include <gl/gl.h>
-
 #include <tutil.h>
 
 #include <board.h>
@@ -22,6 +20,12 @@ struct tetris_state;
  */
 #define PLAY 0
 #define GAME_OVER 1
+
+/*
+ * game state flags
+ */
+// set if the falling piece is not actually placed on the board
+#define TRANSIENT_STATE 0x1
 
 
 /*
@@ -235,6 +239,8 @@ typedef struct tetris_state {
      */
     uint8_t state;
 
+    uint8_t flags;
+
     // align piece_queue to dword
     char __attribute__((aligned(8))) __pad[0];
 
@@ -279,8 +285,15 @@ typedef struct tetris_state {
 } tetris_state;
 
 
+/*
+ * initialize tetris state without graphical capabilities
+ */
+void tetris_state_init(tetris_state *state);
 
-void tetris_state_init(tetris_state *state, gl_context *context, float x,
+/*
+ * initialize tetris state with graphical capabilities
+ */
+void tetris_state_init5(tetris_state *state, float x,
         float y, float screen_width, float screen_height);
 
 
@@ -291,6 +304,14 @@ void tetris_state_shallow_copy(tetris_state *dst, tetris_state *src);
 
 
 void tetris_state_deep_copy(tetris_state *dst, tetris_state *src);
+
+
+int tetris_state_is_transient(tetris_state *state);
+
+
+void tetris_place_falling_piece(tetris_state *state);
+
+void tetris_remove_falling_piece(tetris_state *state);
 
 
 int tetris_game_is_over(tetris_state *state);
@@ -498,6 +519,17 @@ int tetris_advance(tetris_state *s);
 int tetris_advance_transient(tetris_state *s);
 
 
+/*
+ * advnaces game state by complete step, fetching new falling piece from the
+ * queue if the current one sticks and clearing lines if any are to be cleared
+ */
+void tetris_state_step_transient(tetris_state * state);
+
+
+/*
+ * prints the state of the game
+ */
+void print_board(tetris_state * s);
 
 
 #endif /* _TETRIS_STATE_H */

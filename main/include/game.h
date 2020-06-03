@@ -21,6 +21,7 @@
 #define SHOW_UP_NEXT 0x4
 #define SHOW_HOLD 0x8
 #define SHOW_MSG_BOARD 0x10
+#define NO_GRAPHICS 0x20
 
 #define SHOW_ALL (SHOW_FRAME | SHOW_SCORE | SHOW_UP_NEXT | SHOW_HOLD | \
         SHOW_MSG_BOARD)
@@ -33,7 +34,7 @@
 // calls callback each frame and does not setup key listeners (used for AI to
 // play instead of human). If this flag is not set, then the game is controlled
 // with the keyboard keys
-#define MANUAL_CONTROL 0x20
+#define MANUAL_CONTROL 0x40
 
 
 typedef struct game {

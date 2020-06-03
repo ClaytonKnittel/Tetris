@@ -41,25 +41,6 @@ void linear_heuristic_agent_destroy(lha_t *a) {
 }
 
 
-static void print_board(tetris_state * s) {
-    piece_t fp = s->falling_piece;
-    board_t * board = &s->board;
-
-    for (int y = TETRIS_HEIGHT - 1; y >= 0; y--) {
-        for (int x = 0; x < TETRIS_WIDTH; x++) {
-            if (piece_contains(fp, x, y)) {
-                printf("X ");
-            }
-            else {
-                uint8_t tile = board_get_tile(board, x, y);
-                printf("%c ", (tile ? 'O' : '.'));
-            }
-        }
-        printf("\n");
-    }
-}
-
-
 
 
 static int _get_tile(tetris_state *s, int8_t x, int8_t y) {
@@ -731,25 +712,28 @@ static float _find_best_path(lha_t *a, tetris_state *s, int depth) {
  */
 int _try_move(state_node * action, tetris_state *s) {
 
-    if (action->cb_time <= s->time) {
+    if (s->state == PLAY && action->cb_time <= s->time) {
         // time to perform the action
         int ret = 1;
 
+        if (!tetris_state_is_transient(s)) {
+            tetris_remove_falling_piece(s);
+        }
         switch (action->action) {
             case GO_LEFT:
-                tetris_move_piece(s, -1, 0);
+                tetris_move_piece_transient(s, -1, 0);
                 break;
             case GO_RIGHT:
-                tetris_move_piece(s, 1, 0);
+                tetris_move_piece_transient(s, 1, 0);
                 break;
             case GO_DOWN:
-                tetris_move_piece(s, 0, -1);
+                tetris_move_piece_transient(s, 0, -1);
                 break;
             case ROTATE_C:
-                tetris_rotate_piece(s, ROTATE_CLOCKWISE, 1);
+                tetris_rotate_piece_transient(s, ROTATE_CLOCKWISE, 1);
                 break;
             case ROTATE_CC:
-                tetris_rotate_piece(s, ROTATE_COUNTERCLOCKWISE, 1);
+                tetris_rotate_piece_transient(s, ROTATE_COUNTERCLOCKWISE, 1);
                 break;
             case WAIT:
                 if (piece_equals(action->game_state.falling_piece,
@@ -760,8 +744,8 @@ int _try_move(state_node * action, tetris_state *s) {
                 else {
                     // only wait for gravity/stick, so piece must either now be
                     // different, or below us
-                    TETRIS_ASSERT(action->game_state.falling_piece.piece_idx !=
-                                s->falling_piece.piece_idx ||
+                    TETRIS_ASSERT(action->game_state.queue_idx !=
+                                s->queue_idx ||
                             action->game_state.falling_piece.board_y >
                                 s->falling_piece.board_y);
                 }
@@ -769,6 +753,11 @@ int _try_move(state_node * action, tetris_state *s) {
             default:
                 abort();
         }
+
+        if (!tetris_state_is_transient(s)) {
+            tetris_place_falling_piece(s);
+        }
+
         return ret;
     }
     return 0;
@@ -785,13 +774,17 @@ int linear_heuristic_go(lha_t *a, tetris_state *s) {
             // if no internal state, run dijkstra's algorithm to compute all
             // possible landing spots 
 
-            // remove the falling piece from the board
-            board_remove_piece(&s->board, s->falling_piece);
+            if (!tetris_state_is_transient(s)) {
+                // remove the falling piece from the board
+                board_remove_piece(&s->board, s->falling_piece);
+            }
 
             _find_best_path(a, s, a->depth);
 
-            // place the falling piece back on the board
-            board_place_piece(&s->board, s->falling_piece);
+            if (!tetris_state_is_transient(s)) {
+                // place the falling piece back on the board
+                board_place_piece(&s->board, s->falling_piece);
+            }
         }
 
         next_action = a->__int_state.action_list;

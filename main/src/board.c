@@ -173,26 +173,32 @@ const static color_t color_theme[4 * N_COLORS] = {
 };
 
 
-int board_init(board_t *b, uint32_t width, uint32_t height) {
+
+int board_init(board_t *b, uint32_t width, uint32_t height, int do_graphics) {
     uint32_t color_idxs_len = color_idxs_arr_len(width * height);
     b->color_idxs = (uint32_t*) calloc(color_idxs_len, sizeof(uint32_t));
 
     b->width = width;
     b->height = height;
-    gl_load_program(&b->p, "main/res/board.vs", "main/res/board.fs");
 
-    b->color_array_loc = gl_uniform_location(&b->p, "color_array");
+    if (do_graphics) {
+        gl_load_program(&b->p, "main/res/board.vs", "main/res/board.fs");
 
-    b->width_loc = gl_uniform_location(&b->p, "width");
-    b->height_loc = gl_uniform_location(&b->p, "height");
+        b->color_array_loc = gl_uniform_location(&b->p, "color_array");
 
-    b->grayed_loc = gl_uniform_location(&b->p, "grayed");
+        b->width_loc = gl_uniform_location(&b->p, "width");
+        b->height_loc = gl_uniform_location(&b->p, "height");
 
-    b->color_idxs_loc = gl_uniform_location(&b->p, "color_idxs");
+        b->grayed_loc = gl_uniform_location(&b->p, "grayed");
 
-    b->flags = 0;
+        b->color_idxs_loc = gl_uniform_location(&b->p, "color_idxs");
 
-    square_init(&b->tile_prot, .08f, &b->p);
+        square_init(&b->tile_prot, .08f, &b->p);
+
+        shape_set_visible(&b->tile_prot);
+    }
+
+    b->flags = do_graphics ? BOARD_DO_GRAPHICS : 0;;
 
     for (uint32_t i = 0; i < width * height; i++) {
         uint32_t x = i % width;
@@ -200,31 +206,31 @@ int board_init(board_t *b, uint32_t width, uint32_t height) {
         board_set_tile(b, x, y, 0);
     }
 
-    shape_set_visible(&b->tile_prot);
 
+    if (do_graphics) {
+        // initialize constant uniform variables
 
-    // initialize constant uniform variables
+        vec4 colors[4 * N_COLORS];
+        for (uint32_t i = 0; i < 4 * N_COLORS; i++) {
+            colors[i] = color_to_vec4(color_theme[i]);
+        }
 
-    vec4 colors[4 * N_COLORS];
-    for (uint32_t i = 0; i < 4 * N_COLORS; i++) {
-        colors[i] = color_to_vec4(color_theme[i]);
+        gl_use_program(&b->p);
+        glUniform4fv(b->color_array_loc, 4 * N_COLORS, (float*) colors);
+
+        glUniform1ui(b->width_loc, b->width);
+        glUniform1ui(b->height_loc, b->height);
+
+        // need to initialize volatile data in board in first render call
+        _set_board_changed(b);
     }
-
-    gl_use_program(&b->p);
-    glUniform4fv(b->color_array_loc, 4 * N_COLORS, (float*) colors);
-
-    glUniform1ui(b->width_loc, b->width);
-    glUniform1ui(b->height_loc, b->height);
-
-    // need to initialize volatile data in board in first render call
-    _set_board_changed(b);
 
     return 0;
 }
 
 void board_destroy(board_t *b) {
     free(b->color_idxs);
-    if (!(b->flags & BOARD_COPY)) {
+    if (!(b->flags & BOARD_COPY) && (b->flags & BOARD_DO_GRAPHICS)) {
         // only original board is responsible for cleaning this up
         shape_destroy(&b->tile_prot);
         gl_unload_program(&b->p);
@@ -444,6 +450,7 @@ void board_draw(board_t *b) {
 
     // copies of the board should not be drawing
     TETRIS_ASSERT(!(b->flags & BOARD_COPY));
+    TETRIS_ASSERT((b->flags & BOARD_DO_GRAPHICS) != 0);
 
     if (_board_changed(b)) {
         // send over all color information about tiles

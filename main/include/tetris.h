@@ -2,7 +2,6 @@
 #define _TETRIS_H
 
 #include <math/vec2.h>
-#include <gl/gl.h>
 
 #include <board.h>
 #include <key_event.h>
@@ -193,7 +192,7 @@ typedef struct tetris {
  * initialize renderable tetris game, with optional message board (can be null)
  * to which any messages, such as receiving points for a move, will be posted
  */
-void tetris_init(tetris_t *t, gl_context *context, msg_board_t *m, float x,
+void tetris_init(tetris_t *t, msg_board_t *m, float x,
         float y, float screen_width, float screen_height);
 
 

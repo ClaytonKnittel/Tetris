@@ -63,13 +63,24 @@ int game_init(game_t *g, int flags, gl_context *c, font_t *font) {
     if (flags & MANUAL_CONTROL) {
         g->ctrl_callback = NULL;
     }
-    else {
-        gl_register_key_callback(c, &_default_key_event);
-    }
 
-    float x = -w / 2.f;
-    float y = -1.f;
-    tetris_init(t, c, &g->m, x, y, w, 2.f);
+    if (c != NULL) {
+        // only register callback if some graphics are being used
+        gl_register_key_callback(c, &_default_key_event);
+
+        float x = -w / 2.f;
+        float y = -1.f;
+        tetris_init(t, &g->m, x, y, w, 2.f);
+    }
+    else {
+        TETRIS_ASSERT((flags & ~MANUAL_CONTROL) == 0);
+        // if no graphics, don't need to initialize the whole tetris gaem, just
+        // the game state in the tetris game
+        tetris_state_init(&t->game_state);
+        tetris_get_next_falling_piece_transient(&t->game_state);
+
+        g->flags |= NO_GRAPHICS;
+    }
 
     return 0;
 }
@@ -126,7 +137,12 @@ void game_press(game_t *g, int key) {
 
 
 void game_tick(game_t *g) {
-    tetris_step(&g->t);
+    if (g->flags & NO_GRAPHICS) {
+        tetris_state_step_transient(&g->t.game_state);
+    }
+    else {
+        tetris_step(&g->t);
+    }
 
     if (g->flags & MANUAL_CONTROL) {
         TETRIS_ASSERT(g->ctrl_callback != NULL);
@@ -140,6 +156,8 @@ void game_tick(game_t *g) {
 
 void game_render(game_t *g) {
     int flags = g->flags;
+
+    TETRIS_ASSERT(!(flags & NO_GRAPHICS));
 
     tetris_draw(&g->t);
     if (flags & SHOW_FRAME) {

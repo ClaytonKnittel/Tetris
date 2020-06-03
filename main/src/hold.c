@@ -24,7 +24,7 @@ int hold_init(hold_t *ph, float x, float y, float w, float h, font_t *font,
     float board_x = x + (w - board_w) / 2;
     float board_y = y;
 
-    board_init(&ph->board, b_w, b_h);
+    board_init(&ph->board, b_w, b_h, 1);
     board_set_pos(&ph->board, board_x, board_y);
     board_set_xscale(&ph->board, board_w);
     board_set_yscale(&ph->board, board_h);

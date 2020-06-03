@@ -41,6 +41,8 @@ int main(int argc, char *argv[]) {
     game_t g;
     font_t font;
     uint32_t level = 0;
+    // when set, don't do graphics
+    int quiet = 0;
 
     openlog("tetris", LOG_CONS, LOG_USER);
 
@@ -54,7 +56,7 @@ int main(int argc, char *argv[]) {
     struct ai *ai = NULL;
 
     int opt;
-    while ((opt = getopt(argc, argv, "p:a:s:l:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:a:s:l:q")) != -1) {
         switch(opt) {
             case 'a':
                 // use AI
@@ -83,8 +85,13 @@ int main(int argc, char *argv[]) {
                             "number\n", optarg);
                     return usage(argv);
                 }
+                break;
             case 'p':
                 // for MacOS compatibility (gives sn_0_...)
+                break;
+            case 'q':
+                // enable quiet mode
+                quiet = 1;
                 break;
             default:
                 // ignore bad cmd line args for now
@@ -96,31 +103,53 @@ int main(int argc, char *argv[]) {
     seed_rand(seed, 0);
     printf("srand: (%llu, 0)\n", seed);
 
-    gl_init(&c, WIDTH, HEIGHT);
-    c.user_data = (void*) &g.t;
+    if (!quiet) {
+        gl_init(&c, WIDTH, HEIGHT);
+        c.user_data = (void*) &g.t;
 
-    font_init(&font, "fonts/8bit_font.ttf", 12lu);
+        font_init(&font, "fonts/8bit_font.ttf", 12lu);
 
-    color_t bg = gen_color(3, 30, 48, 255);
-    gl_set_bg_color(bg);
+        color_t bg = gen_color(3, 30, 48, 255);
+        gl_set_bg_color(bg);
+    }
+
+    int game_flags;
+    if (quiet) {
+        game_flags = 0;
+    }
+    else {
+        game_flags = SHOW_ALL;
+    }
 
     if (ai != NULL) {
-        game_init(&g, SHOW_ALL | MANUAL_CONTROL, &c, &font);
+        game_init(&g, game_flags | MANUAL_CONTROL, (quiet ? NULL : &c), &font);
         ai_init(ai, &g);
     }
     else {
-        game_init(&g, SHOW_ALL, &c, &font);
+        if (quiet) {
+            fprintf(stderr, "Cannot play tetris in quiet mode without an AI\n");
+            return -1;
+        }
+        game_init(&g, game_flags, &c, &font);
     }
 
     tetris_set_level(&g.t.game_state, level);
 
-    while (!gl_should_exit(&c)) {
+    while ((quiet && !tetris_game_is_over(&g.t.game_state)) ||
+            (!quiet && !gl_should_exit(&c))) {
         game_tick(&g);
 
-        gl_clear(&c);
-        game_render(&g);
-        gl_render(&c);
-        glfwPollEvents();
+        if (g.t.game_state.time >= 500000) {
+            print_board(&g.t.game_state);
+            break;
+        }
+
+        if (!quiet) {
+            gl_clear(&c);
+            game_render(&g);
+            gl_render(&c);
+            glfwPollEvents();
+        }
     }
 
     if (ai != NULL) {
@@ -128,8 +157,11 @@ int main(int argc, char *argv[]) {
     }
 
     game_destroy(&g);
-    font_destroy(&font);
-    gl_exit(&c);
+
+    if (!quiet) {
+        font_destroy(&font);
+        gl_exit(&c);
+    }
 
     closelog();
 

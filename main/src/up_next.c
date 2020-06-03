@@ -26,7 +26,7 @@ int up_next_init(up_next_t *u, uint32_t queue_size, float x, float y,
     float board_x = x + (w - board_w) / 2;
     float board_y = y;
 
-    board_init(&u->board, b_w, b_h);
+    board_init(&u->board, b_w, b_h, 1);
     board_set_pos(&u->board, board_x, board_y);
     board_set_xscale(&u->board, board_w);
     board_set_yscale(&u->board, board_h);

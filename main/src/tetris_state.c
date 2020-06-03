@@ -201,16 +201,7 @@ void tetris_scorer_count_move(tetris_state *s, int32_t num_rows_cleared,
 }
 
 
-
-
-void tetris_state_init(tetris_state *state, gl_context *context, float x,
-        float y, float screen_width, float screen_height) {
-
-
-    board_init(&state->board, TETRIS_WIDTH, TETRIS_HEIGHT);
-    board_set_pos(&state->board, x, y);
-    board_set_xscale(&state->board, screen_width);
-    board_set_yscale(&state->board, screen_height);
+static void _tetris_state_init(tetris_state *state, int flags) {
 
     uint8_t *piece_queue = state->piece_queue;
 
@@ -235,6 +226,8 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
 
     state->state = PLAY;
 
+    state->flags = flags;
+
     // initialize time to 0
     state->time = 0LU;
 
@@ -248,6 +241,26 @@ void tetris_state_init(tetris_state *state, gl_context *context, float x,
     state->key_callback_count = DEFAULT_HELD_KEY_PERIOD;
     state->key_callback_time  = 0.f;
 
+}
+
+
+void tetris_state_init(tetris_state *state) {
+    board_init(&state->board, TETRIS_WIDTH, TETRIS_HEIGHT, 0);
+
+    _tetris_state_init(state, TRANSIENT_STATE);
+}
+
+
+void tetris_state_init5(tetris_state *state, float x,
+        float y, float screen_width, float screen_height) {
+
+
+    board_init(&state->board, TETRIS_WIDTH, TETRIS_HEIGHT, 1);
+    board_set_pos(&state->board, x, y);
+    board_set_xscale(&state->board, screen_width);
+    board_set_yscale(&state->board, screen_height);
+
+    _tetris_state_init(state, 0);
 
 }
 
@@ -265,6 +278,20 @@ void tetris_state_shallow_copy(tetris_state *dst, tetris_state *src) {
 void tetris_state_deep_copy(tetris_state *dst, tetris_state *src) {
     tetris_state_shallow_copy(dst, src);
     board_deep_copy(&dst->board, &src->board);
+}
+
+
+int tetris_state_is_transient(tetris_state *state) {
+    return (state->flags & TRANSIENT_STATE) != 0;
+}
+
+
+void tetris_place_falling_piece(tetris_state *state) {
+    board_place_piece(&state->board, state->falling_piece);
+}
+
+void tetris_remove_falling_piece(tetris_state *state) {
+    board_remove_piece(&state->board, state->falling_piece);
 }
 
 
@@ -959,3 +986,46 @@ int tetris_advance_transient(tetris_state *s) {
         return ADVANCE_MOVED_PIECE;
     }
 }
+
+
+
+/*
+ * advnaces game state by complete step, fetching new falling piece from the
+ * queue if the current one sticks and clearing lines if any are to be cleared
+ */
+void tetris_state_step_transient(tetris_state * state) {
+    if (tetris_is_major_time_step(state)) {
+        // advance game state
+        while (tetris_advance_transient(state) ==
+                ADVANCE_PLACED_PIECE) {
+
+            board_place_piece(&state->board, state->falling_piece);
+            tetris_clear_lines(state);
+            tetris_get_next_falling_piece_transient(state);
+        }
+    }
+}
+
+
+
+
+void print_board(tetris_state * s) {
+    piece_t fp = s->falling_piece;
+    board_t * board = &s->board;
+
+    printf("Score: %d\nLevel: %d\n", s->scorer.score, s->scorer.level);
+
+    for (int y = TETRIS_HEIGHT - 1; y >= 0; y--) {
+        for (int x = 0; x < TETRIS_WIDTH; x++) {
+            if (piece_contains(fp, x, y)) {
+                printf("X ");
+            }
+            else {
+                uint8_t tile = board_get_tile(board, x, y);
+                printf("%c ", (tile ? 'O' : '.'));
+            }
+        }
+        printf("\n");
+    }
+}
+
