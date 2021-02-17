@@ -20,13 +20,13 @@ IFLAGS=-I$(GAMEDIR)/include -I$(LIBDIR)/include $(shell pkg-config --cflags free
 LFLAGS=-L$(LDIR)
 
 # opengl libraries
-GLLIBS=-lglew.2.1 -lglfw.3.3 -framework OpenGL
+GLLIBS=-lglew.2.2 -lglfw.3.3 -framework OpenGL
 
 # set when in debug mode
-DEBUG=1
+DEBUG=0
 
 # set when building for production
-BUILD=0
+BUILD=1
 
 ifeq ($(BUILD), 1)
 BFLAGS=-DBUILD

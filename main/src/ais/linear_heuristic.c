@@ -25,12 +25,26 @@
 #define DEFAULT_BEST_N 4
 
 
+static const float default_cnsts[N_CNSTS] = {
+    -.510066f,
+     .760666f,
+    -.35663f,
+    -.184483f
+};
+
+
 
 lha_t * linear_heuristic_agent_init() {
+    return linear_heuristic_agent_init_cnsts(default_cnsts);
+}
+
+lha_t * linear_heuristic_agent_init_cnsts(const float * cnsts) {
     lha_t * agent = (lha_t *) calloc(1, sizeof(lha_t));
 
     agent->depth = DEFAULT_DEPTH;
     agent->best_n = DEFAULT_BEST_N;
+
+    memcpy(agent->cnsts, cnsts, N_CNSTS * sizeof(float));
 
     return agent;
 }
@@ -53,7 +67,7 @@ static int _get_tile(tetris_state *s, int8_t x, int8_t y) {
 
 
 // goal of AI is to maximize this value
-static float heuristic(tetris_state *s) {
+static float heuristic(lha_t *a, tetris_state *s) {
     uint32_t aggregate_height = 0;
     //a hole is defined as an empty tile with the tile above it non-empty
     uint32_t n_holes = 0;
@@ -100,13 +114,13 @@ static float heuristic(tetris_state *s) {
         n_complete_lines += line_complete;
     }
 
-    static const float a = -.510066f,
-                       b =  .760666f,
-                       c = -.35663f,
-                       d = -.184483f;
+    float A = a->cnsts[0];
+    float B = a->cnsts[1];
+    float C = a->cnsts[2];
+    float D = a->cnsts[3];
 
-    float h = a * aggregate_height + b * n_complete_lines +
-        c * n_holes + d * bumpiness;
+    float h = A * aggregate_height + B * n_complete_lines +
+        C * n_holes + D * bumpiness;
 
     return h;
 }
@@ -416,7 +430,7 @@ static void _run_dijkstra(state_t *s) {
  * of nodes from the starting point to node (using the next field in node), and
  * returning a pointer to the head of the list
  *
- * the list is NULL terminated
+ * the list is NULL-terminated
  */
 state_node * _construct_path_to(state_t *s, state_node *node) {
     
@@ -489,7 +503,7 @@ static float _depth_find(lha_t *a, state_t *s, state_node *fs, int depth) {
 }
 
 
-static state_node * _find_best_n(state_node * falling_spots, int n) {
+static state_node * _find_best_n(lha_t *a, state_node * falling_spots, int n) {
     struct sh {
         state_node * node;
         float h;
@@ -498,7 +512,7 @@ static state_node * _find_best_n(state_node * falling_spots, int n) {
     best_n = (struct sh *) calloc(n, sizeof(struct sh));
 
     for (state_node * fs = falling_spots; fs != LIST_END; fs = fs->next) {
-        float h = heuristic(&fs->game_state);
+        float h = heuristic(a, &fs->game_state);
 
         for (uint32_t i = 0; i < n; i++) {
             struct sh * tmp = &best_n[i];
@@ -558,7 +572,7 @@ static float _choose_best_dst(lha_t *a, state_t *s, int depth) {
 
             float h;
             if (depth == 1) {
-                h = heuristic(&fs->game_state);
+                h = heuristic(a, &fs->game_state);
             }
             else {
                 h = _depth_find(a, s, fs, depth);
@@ -577,13 +591,13 @@ static float _choose_best_dst(lha_t *a, state_t *s, int depth) {
     }
     else {
         // find best n places to land
-        state_node * best_n = _find_best_n(s->falling_spots, a->best_n);
+        state_node * best_n = _find_best_n(a, s->falling_spots, a->best_n);
 
         for (state_node * fs = best_n; fs != LIST_END; fs = fs->next) {
 
             float h;
             if (depth == 1) {
-                h = heuristic(&fs->game_state);
+                h = heuristic(a, &fs->game_state);
             }
             else {
                 h = _depth_find(a, s, fs, depth);
