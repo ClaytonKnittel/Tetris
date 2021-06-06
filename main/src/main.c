@@ -24,11 +24,6 @@ const float aspect_ratio = ((float) HEIGHT) / ((float) WIDTH);
 
 typedef struct board board_t;
 
-void cb(game_t *g, board_t *b, void* arg) {
-    game_press(g, GLFW_KEY_LEFT);
-    game_press(g, GLFW_KEY_UP);
-}
-
 
 int usage(char *argv[]) {
     fprintf(stderr, "Usage: %s\n", argv[0]);

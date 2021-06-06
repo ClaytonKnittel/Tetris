@@ -296,30 +296,25 @@ static void _handle_event(tetris_t *t, key_event *ev) {
                 }
                 t->ctrl.keypress_flags |= RIGHT_KEY;
                 break;
-            case GLFW_KEY_UP:
-                if (ctrl_is_active(&t->ctrl)) {
-                    res = _rotate_piece(t, ROTATE_CLOCKWISE);
-                }
-                break;
             case GLFW_KEY_DOWN:
                 t->ctrl.keypress_flags |= DOWN_KEY;
                 break;
-            case GLFW_KEY_A:
+            case GLFW_KEY_Z:
                 if (ctrl_is_active(&t->ctrl)) {
                     res = _rotate_piece(t, ROTATE_COUNTERCLOCKWISE);
                 }
                 break;
-            case GLFW_KEY_D:
+            case GLFW_KEY_X:
                 if (ctrl_is_active(&t->ctrl)) {
                     res = _rotate_piece(t, ROTATE_CLOCKWISE);
                 }
                 break;
-            case GLFW_KEY_LEFT_SHIFT:
+            case GLFW_KEY_SPACE:
                 if (ctrl_is_active(&t->ctrl)) {
                     tetris_hold_piece(&t->game_state);
                 }
                 break;
-            case GLFW_KEY_SPACE:
+            case GLFW_KEY_UP:
                 if (ctrl_is_active(&t->ctrl)) {
                     tetris_hard_drop(&t->game_state);
                     // the piece is always successfully moved
